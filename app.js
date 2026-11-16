@@ -248,7 +248,8 @@
         const { data } = await sb.from('travel_settings').select('value').eq('key', 'TEACHER_PIN').single();
         const teacherPin = data ? data.value.trim() : "7777";
         if (String(pin).trim() === teacherPin) {
-          return { success: true, teacherToken: `TEACHER_TOKEN_${Date.now()}` };
+          const tToken = `TEACHER_TOKEN_${Date.now()}`;
+          return { success: true, token: tToken, teacherToken: tToken, isTeacher: true };
         }
         return { success: false, error: "관리자 PIN이 일치하지 않습니다." };
       }
@@ -256,9 +257,9 @@
       if (funcName === "saveRecommendedBooks") {
         const teacherToken = args[0];
         const selectedIds = args[1] || [];
-        if (!teacherToken) return { success: false, error: "관리자 권한이 필요합니다." };
+        if (!teacherToken && !state.isTeacher) return { success: false, error: "관리자 권한이 필요합니다." };
         await sb.from('travel_settings').upsert({ key: 'RECOMMENDED_BOOKS', value: selectedIds.join(',') });
-        return { success: true };
+        return { success: true, recommendedBooks: selectedIds };
       }
 
       if (funcName === "listGratitudeEntries") {
