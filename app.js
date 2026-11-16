@@ -502,7 +502,125 @@
   }
 
   // DOM 로드 시 초기화
+    // 🍎 애플 스타일 인터랙티브 독(Dock) 확대 및 마우스 추적 효과
+  function initDockMagnificationEffect() {
+    var dock = document.querySelector(".bottom-nav");
+    if (!dock) return;
+
+    var items = dock.querySelectorAll(".nav-item");
+    var maxDistance = 110; // 마우스 영향 범위 (px)
+    var maxScale = 1.35;   // 최대 확대 배율
+    var maxLift = 12;      // 위로 솟아오르는 높이 (px)
+    var rafId = null;
+
+    dock.addEventListener("mousemove", function(e) {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(function() {
+        var mouseX = e.clientX;
+
+        items.forEach(function(item) {
+          var rect = item.getBoundingClientRect();
+          var itemCenterX = rect.left + rect.width / 2;
+          var dist = Math.abs(mouseX - itemCenterX);
+
+          if (dist < maxDistance) {
+            // 코사인 감쇠 곡선: 중심에서 1, 거리 끝에서 0
+            var factor = Math.cos((dist / maxDistance) * (Math.PI / 2));
+            var scale = 1 + (maxScale - 1) * factor;
+            var lift = -maxLift * factor;
+            var pullX = (mouseX - itemCenterX) * 0.15 * factor; // 커서 방향으로 살짝 당겨짐
+
+            item.style.transform = "translate3d(" + pullX + "px, " + lift + "px, 0) scale(" + scale + ")";
+            item.style.zIndex = Math.round(50 * factor) + 1;
+
+            var icon = item.querySelector(".nav-icon");
+            if (icon) {
+              icon.style.transform = "scale(" + (1 + 0.18 * factor) + ")";
+            }
+          } else {
+            item.style.transform = "translate3d(0, 0, 0) scale(1)";
+            item.style.zIndex = "1";
+            var icon = item.querySelector(".nav-icon");
+            if (icon) icon.style.transform = "scale(1)";
+          }
+        });
+      });
+    });
+
+    dock.addEventListener("mouseleave", function() {
+      if (rafId) cancelAnimationFrame(rafId);
+      items.forEach(function(item) {
+        item.style.transform = "translate3d(0, 0, 0) scale(1)";
+        item.style.zIndex = "1";
+        var icon = item.querySelector(".nav-icon");
+        if (icon) icon.style.transform = "scale(1)";
+      });
+    });
+  }
+
+  // 🎴 BT 카드 도감 마우스 추적 3D 틸트 및 확대 효과 (이벤트 위임)
+  function initCardDexTiltEffect() {
+    var grid = document.getElementById("card-dex-grid");
+    if (!grid) return;
+
+    var activeCard = null;
+    var rafId = null;
+
+    function resetCard(card) {
+      if (!card) return;
+      card.style.transform = "perspective(600px) translate3d(0, 0, 0) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)";
+      card.style.boxShadow = "";
+      card.style.zIndex = "";
+    }
+
+    grid.addEventListener("mousemove", function(e) {
+      var card = e.target.closest(".card-dex-item");
+      if (activeCard && activeCard !== card) {
+        resetCard(activeCard);
+        activeCard = null;
+      }
+      if (!card) return;
+      activeCard = card;
+
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(function() {
+        var rect = card.getBoundingClientRect();
+        var x = e.clientX - rect.left;
+        var y = e.clientY - rect.top;
+        var centerX = rect.width / 2;
+        var centerY = rect.height / 2;
+        var deltaX = (x - centerX) / (centerX || 1);
+        var deltaY = (y - centerY) / (centerY || 1);
+
+        // 3D 회전각 및 마우스 추적 이동값 계산
+        var rotateX = -deltaY * 12;
+        var rotateY = deltaX * 12;
+        var pullX = deltaX * 5;
+        var pullY = deltaY * 5;
+
+        var isUnlocked = card.classList.contains("unlocked");
+        var shadowGlow = isUnlocked 
+          ? (-deltaX * 8) + "px " + (10 - deltaY * 6) + "px 20px rgba(255, 102, 175, 0.35)" 
+          : (-deltaX * 6) + "px " + (8 - deltaY * 4) + "px 16px rgba(0, 0, 0, 0.12)";
+
+        card.style.transform = "perspective(600px) translate3d(" + pullX + "px, " + pullY + "px, 0) rotateX(" + rotateX + "deg) rotateY(" + rotateY + "deg) scale3d(1.08, 1.08, 1.08)";
+        card.style.boxShadow = shadowGlow;
+        card.style.zIndex = "20";
+      });
+    });
+
+    grid.addEventListener("mouseleave", function() {
+      if (rafId) cancelAnimationFrame(rafId);
+      if (activeCard) {
+        resetCard(activeCard);
+        activeCard = null;
+      }
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function() {
+    initDockMagnificationEffect();
+    initCardDexTiltEffect();
     restoreSession();
     
 
