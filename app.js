@@ -27,6 +27,61 @@
 
   var targetStudentIdForLogin = null;
 
+  // 한국 시간 (KST, Asia/Seoul) yyyy-MM-dd 날짜 문자열 계산 유틸리티
+  function getKstDateString(d) {
+    var dateObj = d || new Date();
+    var offset = 9 * 60;
+    var local = new Date(dateObj.getTime() + (offset + dateObj.getTimezoneOffset()) * 60000);
+    var y = local.getFullYear();
+    var m = String(local.getMonth() + 1).padStart(2, '0');
+    var day = String(local.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+
+  // 성경 읽기 로그 기반 학생 실시간 진도(Day) 및 정시 연속일수(Streak) 동적 산출 유틸리티
+  function calculateStudentMetrics(logs) {
+    var uniqueChapters = {};
+    var onTimeDates = {};
+    (logs || []).forEach(function(l) {
+      if (l.book_name && l.chapter) {
+        uniqueChapters[l.book_name + '_' + l.chapter] = true;
+      }
+      if (l.is_on_time && l.read_date) {
+        var dStr = String(l.read_date).split('T')[0].split(' ')[0];
+        if (dStr) onTimeDates[dStr] = true;
+      }
+    });
+
+    var uniqueCount = Object.keys(uniqueChapters).length;
+    var calcDay = uniqueCount === 0 ? 1 : Math.max(1, Math.ceil(uniqueCount / 3));
+
+    var now = new Date();
+    var todayStr = getKstDateString(now);
+    var yesterday = new Date(now.getTime() - 86400000);
+    var yesterdayStr = getKstDateString(yesterday);
+
+    var streakDays = 0;
+    var checkDate = null;
+    if (onTimeDates[todayStr]) checkDate = now;
+    else if (onTimeDates[yesterdayStr]) checkDate = yesterday;
+
+    if (checkDate) {
+      var tempDate = new Date(checkDate.getTime());
+      while (true) {
+        var dStr = getKstDateString(tempDate);
+        if (onTimeDates[dStr]) {
+          streakDays++;
+          tempDate = new Date(tempDate.getTime() - 86400000);
+        } else {
+          break;
+        }
+      }
+    }
+    if (onTimeDates[todayStr] && streakDays === 0) streakDays = 1;
+
+    return { currentDayIndex: calcDay, streakOnTime: streakDays, uniqueCount: uniqueCount };
+  }
+
   // Promise 기반 google.script.run 안전 래퍼
   
   // Supabase 직결 초고속 API 통신 래퍼 (GAS 2~5초 -> Supabase 0.05초)
@@ -71,20 +126,62 @@
       }
 
       if (funcName === "listStudentCards") {
-        const { data, error } = await sb.from('travel_students').select('*').eq('is_active', true);
+        const { data: students, error } = await sb.from('travel_students').select('*').eq('is_active', true);
         if (error) return { success: false, error: error.message };
-        const students = data.map(s => ({
-          studentId: s.student_id,
-          name: s.name,
-          department: s.department,
-          displayEmoji: s.display_emoji,
-          cardColor: s.card_color,
-          currentDayIndex: s.current_day_index,
-          stampBalance: s.stamp_balance,
-          gemBalance: s.gem_balance,
-          streakOnTime: s.streak_on_time
-        }));
-        return { success: true, students };
+
+        // 전체 읽기 로그 페이지네이션 일괄 로드 (약 0.08초 소요)
+        let allLogs = [];
+        try {
+          let page = 0;
+          const pageSize = 1000;
+          while (true) {
+            const from = page * pageSize;
+            const { data: chunk, error: logErr } = await sb.from('travel_reading_logs')
+              .select('student_id,book_name,chapter,read_date,is_on_time')
+              .range(from, from + pageSize - 1);
+            if (logErr || !chunk || chunk.length === 0) break;
+            allLogs = allLogs.concat(chunk);
+            if (chunk.length < pageSize) break;
+            page++;
+          }
+        } catch (e) {
+          console.warn("로그 일괄 로드 중 경고:", e);
+        }
+
+        // 학생별 읽기 로그 매핑
+        const logsByStudent = {};
+        allLogs.forEach(l => {
+          const sId = String(l.student_id).trim();
+          if (!logsByStudent[sId]) logsByStudent[sId] = [];
+          logsByStudent[sId].push(l);
+        });
+
+        const list = students.map(s => {
+          const sId = String(s.student_id).trim();
+          const sLogs = logsByStudent[sId];
+          let currentDay = s.current_day_index || 1;
+          let streak = s.streak_on_time || 0;
+
+          if (sLogs && sLogs.length > 0) {
+            const m = calculateStudentMetrics(sLogs);
+            currentDay = m.currentDayIndex;
+            streak = m.streakOnTime;
+          }
+
+          return {
+            studentId: sId,
+            name: s.name,
+            department: s.department,
+            displayEmoji: s.display_emoji,
+            cardColor: s.card_color,
+            currentDayIndex: currentDay,
+            stampBalance: s.stamp_balance,
+            gemBalance: s.gem_balance,
+            streakOnTime: streak
+          };
+        });
+
+        return { success: true, students: list };
       }
 
       if (funcName === "verifyStudentPin") {
@@ -94,8 +191,15 @@
         if (error || !data) return { success: false, error: "학생 정보를 찾을 수 없습니다." };
         if (String(data.pin).trim() !== String(pin).trim()) return { success: false, error: "PIN 번호가 일치하지 않습니다." };
 
-        const { data: logs } = await sb.from('travel_reading_logs').select('book_name, chapter').eq('student_id', studentId);
+        const { data: logs } = await sb.from('travel_reading_logs').select('book_name, chapter, read_date, is_on_time').eq('student_id', studentId);
+        const metrics = calculateStudentMetrics(logs);
         const cleanLogs = (logs || []).map(l => ({ bookName: l.book_name, chapter: l.chapter }));
+
+        // 최신 Day 및 Streak를 travel_students에 비동기 반영
+        sb.from('travel_students').update({
+          current_day_index: metrics.currentDayIndex,
+          streak_on_time: metrics.streakOnTime
+        }).eq('student_id', studentId).then(() => {});
 
         const safeStudent = {
           studentId: data.student_id,
@@ -103,11 +207,11 @@
           department: data.department,
           displayEmoji: data.display_emoji,
           cardColor: data.card_color,
-          currentDayIndex: data.current_day_index,
+          currentDayIndex: metrics.currentDayIndex,
           stampBalance: data.stamp_balance,
           gemBalance: data.gem_balance,
           totalUsedStamps: data.total_used_stamps,
-          streakOnTime: data.streak_on_time,
+          streakOnTime: metrics.streakOnTime,
           readLogs: cleanLogs
         };
         return { success: true, sessionToken: `STU_TOKEN_${studentId}_${Date.now()}`, student: safeStudent };
@@ -117,14 +221,16 @@
         const studentId = args[0];
         const { data, error } = await sb.from('travel_students').select('*').eq('student_id', studentId).single();
         if (error || !data) return { success: false, error: "데이터 조회 실패" };
-        const { data: logs } = await sb.from('travel_reading_logs').select('book_name, chapter').eq('student_id', studentId);
+        const { data: logs } = await sb.from('travel_reading_logs').select('book_name, chapter, read_date, is_on_time').eq('student_id', studentId);
+        const metrics = calculateStudentMetrics(logs);
+
         return {
           success: true,
           stampBalance: data.stamp_balance,
           gemBalance: data.gem_balance,
           totalUsedStamps: data.total_used_stamps,
-          streakOnTime: data.streak_on_time,
-          currentDayIndex: data.current_day_index,
+          streakOnTime: metrics.streakOnTime,
+          currentDayIndex: metrics.currentDayIndex,
           readLogs: (logs || []).map(l => ({ bookName: l.book_name, chapter: l.chapter }))
         };
       }
@@ -175,6 +281,12 @@
 
         // 전체 읽은 로그 및 streak 다시 산출
         const { data: allLogs } = await sb.from('travel_reading_logs').select('book_name, chapter, read_date, is_on_time').eq('student_id', studentId);
+        const metrics = calculateStudentMetrics(allLogs);
+        await sb.from('travel_students').update({
+          current_day_index: metrics.currentDayIndex,
+          streak_on_time: metrics.streakOnTime
+        }).eq('student_id', studentId);
+
         const { data: latestStudent } = await sb.from('travel_students').select('*').eq('student_id', studentId).single();
 
         return {
@@ -182,7 +294,8 @@
           stampBalance: latestStudent.stamp_balance,
           gemBalance: latestStudent.gem_balance,
           totalUsedStamps: latestStudent.total_used_stamps,
-          streakOnTime: latestStudent.streak_on_time,
+          streakOnTime: metrics.streakOnTime,
+          currentDayIndex: metrics.currentDayIndex,
           readLogs: (allLogs || []).map(l => ({ bookName: l.book_name, chapter: l.chapter }))
         };
       }
