@@ -215,13 +215,21 @@
 
       if (funcName === "unlockStudentCard") {
         const sessionToken = args[0];
-        const bookOrder = args[1];
-        const studentId = String(sessionToken).split('_')[2];
-        await sb.from('travel_student_cards').upsert({
+        const bookOrder = Number(args[1]);
+        const studentId = sessionToken && String(sessionToken).includes('_') ? String(sessionToken).split('_')[2] : (state.student ? state.student.studentId : null);
+        if (!studentId) return { success: false, error: "로그인이 필요합니다." };
+
+        // 이미 해금된 카드인지 확인 (중복 지급 방지)
+        const { data: existing } = await sb.from('travel_student_cards').select('id').match({ student_id: studentId, card_order: bookOrder }).maybeSingle();
+        if (existing) {
+          return { success: true, alreadyUnlocked: true };
+        }
+
+        await sb.from('travel_student_cards').insert({
           student_id: studentId,
           card_order: bookOrder,
           unlocked_at: new Date().toISOString()
-        }, { onConflict: 'student_id,card_order' });
+        });
 
         const { data: s } = await sb.from('travel_students').select('gem_balance').eq('student_id', studentId).single();
         const newGem = (s ? s.gem_balance : 0) + 2;
@@ -237,10 +245,49 @@
 
       if (funcName === "getCardDex") {
         const sessionToken = args[0];
-        const studentId = String(sessionToken).split('_')[2];
-        const { data: myCards } = await sb.from('travel_student_cards').select('card_order').eq('student_id', studentId);
-        const unlockedOrders = (myCards || []).map(c => c.card_order);
-        return { success: true, unlockedOrders };
+        let studentId = null;
+        if (sessionToken && String(sessionToken).includes('_')) {
+          studentId = String(sessionToken).split('_')[2];
+        } else if (state.student && state.student.studentId) {
+          studentId = state.student.studentId;
+        }
+
+        let userUnlockedSet = {};
+        if (studentId) {
+          const { data: myCards } = await sb.from('travel_student_cards').select('card_order').eq('student_id', studentId);
+          (myCards || []).forEach(c => {
+            userUnlockedSet[Number(c.card_order)] = true;
+          });
+        }
+
+        let unlockedCount = 0;
+        const cards = ALL_66_BIBLE_BOOKS.map(b => {
+          const cardInfo = (typeof BT_CARDS_MAP !== 'undefined' && BT_CARDS_MAP[b.order]) ? BT_CARDS_MAP[b.order] : {
+            title: b.name + " 완독 카드",
+            category: "성경",
+            img: `/cards/bt_${b.order < 10 ? '0' + b.order : b.order}.jpg`
+          };
+
+          const isUnlocked = (userUnlockedSet[b.order] === true);
+          if (isUnlocked) unlockedCount++;
+
+          return {
+            bookOrder: b.order,
+            id: `BT-${b.order < 10 ? '0' + b.order : b.order}`,
+            bookName: b.name,
+            title: cardInfo.title || (b.name + " 완독 카드"),
+            category: cardInfo.category || "성경",
+            imageUrl: cardInfo.img || `/cards/bt_${b.order < 10 ? '0' + b.order : b.order}.jpg`,
+            isUnlocked: isUnlocked
+          };
+        });
+
+        return {
+          success: true,
+          cards: cards,
+          unlockedCount: unlockedCount,
+          totalCount: 66
+        };
       }
 
       if (funcName === "verifyTeacherPin") {
@@ -2148,7 +2195,8 @@
 
     if (catEl) catEl.textContent = card.category || "BT 카드";
     if (titleEl) titleEl.textContent = isUnlocked ? (card.bookOrder + ". " + card.bookName + " - " + card.title) : "미해금 카드";
-    if (imgEl) imgEl.src = (isUnlocked && card.imageUrl) ? card.imageUrl : "https://via.placeholder.com/300x400?text=Locked";
+    var lockSvg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='400' viewBox='0 0 300 400'><rect width='100%' height='100%' fill='%23f8fafc'/><text x='50%' y='46%' font-size='60' text-anchor='middle' dominant-baseline='middle'>🔒</text><text x='50%' y='62%' font-size='16' font-family='sans-serif' font-weight='bold' fill='%2394a3b8' text-anchor='middle' dominant-baseline='middle'>미해금 카드</text></svg>";
+    if (imgEl) imgEl.src = (isUnlocked && card.imageUrl) ? card.imageUrl : lockSvg;
     if (descEl) descEl.textContent = isUnlocked ? (card.bookName + " 완독을 축하합니다!") : "성경을 완독하여 카드를 해금하세요.";
 
     modal.classList.add("active");
