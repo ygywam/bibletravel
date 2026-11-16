@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Blue Cover Gradient -->
+    <linearGradient id="bookCoverGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+
+    <!-- Bottom Spine / Rim Gradient -->
+    <linearGradient id="bookSpineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#0369a1"/>
+    </linearGradient>
+
+    <!-- Left Page Surface -->
+    <linearGradient id="leftPageGrad" x1="100%" y1="0%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#cbd5e1"/>
+      <stop offset="6%" stop-color="#e2e8f0"/>
+      <stop offset="25%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#ffffff"/>
+    </linearGradient>
+
+    <!-- Right Page Surface -->
+    <linearGradient id="rightPageGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#cbd5e1"/>
+      <stop offset="6%" stop-color="#e2e8f0"/>
+      <stop offset="25%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#ffffff"/>
+    </linearGradient>
+
+    <!-- Page Thickness Block -->
+    <linearGradient id="pageThicknessGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#e2e8f0"/>
+      <stop offset="60%" stop-color="#cbd5e1"/>
+      <stop offset="100%" stop-color="#94a3b8"/>
+    </linearGradient>
+
+    <!-- Soft Drop Shadow -->
+    <filter id="bookDropShadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#0284c7" flood-opacity="0.30"/>
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#bookDropShadow)">
+    <!-- Blue Hardcover Base -->
+    <!-- Left Flap -->
+    <path d="M 256 384
+             C 185 362, 110 362, 48 382
+             C 40 384, 32 376, 32 366
+             L 32 178
+             C 32 168, 40 160, 50 158
+             C 112 138, 185 138, 256 160
+             Z" 
+          fill="url(#bookCoverGrad)"/>
+
+    <!-- Right Flap -->
+    <path d="M 256 384
+             C 327 362, 402 362, 464 382
+             C 472 384, 480 376, 480 366
+             L 480 178
+             C 480 168, 472 160, 462 158
+             C 400 138, 327 138, 256 160
+             Z" 
+          fill="url(#bookCoverGrad)"/>
+
+    <!-- Bottom Center Spine Notch / Tab -->
+    <path d="M 242 382
+             Q 256 406, 270 382
+             L 264 410
+             Q 256 420, 248 410
+             Z"
+          fill="url(#bookSpineGrad)"/>
+
+    <!-- Page Thickness Edge (Lower 3D Stack) -->
+    <path d="M 54 366
+             C 114 346, 185 346, 256 366
+             L 256 376
+             C 185 356, 114 356, 54 376
+             Z"
+          fill="url(#pageThicknessGrad)"/>
+
+    <path d="M 458 366
+             C 398 346, 327 346, 256 366
+             L 256 376
+             C 327 356, 398 356, 458 376
+             Z"
+          fill="url(#pageThicknessGrad)"/>
+
+    <!-- Open White Pages -->
+    <!-- Left Page Surface -->
+    <path d="M 256 166
+             C 188 144, 116 144, 56 164
+             C 48 166, 42 174, 42 182
+             L 42 352
+             C 42 360, 50 368, 58 366
+             C 118 346, 188 346, 256 366
+             Z" 
+          fill="url(#leftPageGrad)"/>
+
+    <!-- Right Page Surface -->
+    <path d="M 256 166
+             C 324 144, 396 144, 456 164
+             C 464 166, 470 174, 470 182
+             L 470 352
+             C 470 360, 462 368, 454 366
+             C 394 346, 324 346, 256 366
+             Z" 
+          fill="url(#rightPageGrad)"/>
+
+    <!-- Center Spine Crease Line / Shadow -->
+    <line x1="256" y1="166" x2="256" y2="366" stroke="#94a3b8" stroke-width="4" stroke-linecap="round"/>
+    <line x1="256" y1="166" x2="256" y2="366" stroke="#cbd5e1" stroke-width="2"/>
+  </g>
+</svg>
