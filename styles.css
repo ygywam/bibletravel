@@ -189,6 +189,18 @@ body {
 
 .view-section.active {
   display: block;
+  animation: viewFadeSlide 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes viewFadeSlide {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* 32px 라운드 캡슐 버튼 */
@@ -204,19 +216,97 @@ body {
   font-weight: 800;
   border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(255, 102, 175, 0.25);
+  transition: transform 0.16s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.16s ease, background 0.15s ease, filter 0.15s ease;
+  box-shadow: 0 4px 14px rgba(255, 102, 175, 0.25);
   width: 100%;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(255, 102, 175, 0.4);
+  filter: brightness(1.03);
 }
 
 .btn-pill:active {
-  transform: scale(0.97);
+  transform: translateY(1px) scale(0.97);
+  box-shadow: 0 2px 6px rgba(255, 102, 175, 0.2);
 }
 
 .btn-pill.btn-secondary {
   background: #f1f5f9;
   color: var(--foreground);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.btn-pill.btn-secondary:hover {
+  background: #e2e8f0;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.08);
+}
+
+.btn-pill.btn-secondary:active {
+  transform: translateY(1px) scale(0.97);
   box-shadow: none;
+}
+
+/* 주요 행동 유도 CTA 버튼 (누르고 싶게 만드는 비주얼 효과 & 샴페인 스윕) */
+.btn-cta {
+  background: linear-gradient(135deg, #ff66af 0%, #ff4296 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 20px rgba(255, 102, 175, 0.4) !important;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.18s ease, filter 0.15s ease !important;
+}
+
+.btn-cta:hover {
+  transform: translateY(-3px) scale(1.01) !important;
+  box-shadow: 0 10px 26px rgba(255, 102, 175, 0.52) !important;
+  filter: brightness(1.05) !important;
+}
+
+.btn-cta:active {
+  transform: translateY(1px) scale(0.97) !important;
+  box-shadow: 0 3px 8px rgba(255, 102, 175, 0.25) !important;
+}
+
+.btn-cta::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -60%;
+  width: 40%;
+  height: 200%;
+  background: rgba(255, 255, 255, 0.28);
+  transform: rotate(25deg);
+  pointer-events: none;
+  transition: none;
+}
+
+.btn-cta:hover::after {
+  left: 130%;
+  transition: left 0.65s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 보석/상점 전용 보라색 CTA 버튼 */
+.btn-exchange-cta {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 5px 16px rgba(139, 92, 246, 0.35) !important;
+  transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.18s ease !important;
+}
+
+.btn-exchange-cta:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 22px rgba(139, 92, 246, 0.5) !important;
+  filter: brightness(1.05) !important;
+}
+
+.btn-exchange-cta:active {
+  transform: translateY(1px) scale(0.97) !important;
+  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.25) !important;
 }
 
 /* 기본 카드 컨테이너 */
@@ -548,6 +638,12 @@ body {
   border-radius: 24px;
   padding: 24px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  transform: scale(0.94) translateY(12px);
+  transition: transform 0.24s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.modal-overlay.active .modal-card {
+  transform: scale(1) translateY(0);
 }
 
 /* PIN 다이얼 상자 */
@@ -617,3 +713,107 @@ body {
   cursor: pointer;
 }
 
+
+/* 감사/기도제목 피드 인터랙티브 하트 응원 버튼 */
+.btn-heart-like {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 800;
+  border: 1.5px solid var(--border);
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.16s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.16s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.btn-heart-like:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.22);
+  border-color: #fca5a5;
+  color: #ef4444;
+  background: #fff5f5;
+}
+
+.btn-heart-like:active {
+  transform: scale(0.92);
+}
+
+.btn-heart-like.liked {
+  background: #fef2f2;
+  border-color: #f87171;
+  color: #ef4444;
+  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.2);
+}
+
+.btn-heart-like .heart-icon {
+  font-size: 16px;
+  display: inline-block;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.btn-heart-like:hover .heart-icon {
+  transform: scale(1.25);
+}
+
+.btn-heart-like.animating .heart-icon {
+  animation: heartBurst 0.55s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes heartBurst {
+  0% { transform: scale(1); }
+  25% { transform: scale(1.65) rotate(-14deg); }
+  50% { transform: scale(1.2) rotate(10deg); }
+  75% { transform: scale(1.4) rotate(-4deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+/* 마켓 상품 카드 반응형 인터랙티브 스타일 */
+.market-product-card {
+  background: #ffffff;
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.market-product-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(139, 92, 246, 0.16);
+  border-color: #c4b5fd;
+}
+
+/* 이모티콘 팔레트 버튼 스타일 */
+.market-emoji-btn {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 2px;
+  font-size: 24px;
+  cursor: pointer;
+  transition: transform 0.14s cubic-bezier(0.2, 0, 0, 1), background 0.14s ease, border-color 0.14s ease;
+  user-select: none;
+}
+
+.market-emoji-btn:hover {
+  transform: scale(1.22);
+  background: #fff3f8;
+  border-color: var(--primary);
+}
+
+.market-emoji-btn.selected {
+  background: #fff0f7;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(255, 102, 175, 0.35);
+  transform: scale(1.15);
+}

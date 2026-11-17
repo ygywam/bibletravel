@@ -58,7 +58,7 @@
           <p style="font-size:14px; color:var(--muted); line-height:1.6; max-width:500px; margin:0 auto 20px auto;">
             매일성경 하루 1~3장 통독을 통해 8개 성경 유형 맵 위를 미로처럼 여행하며, 도장과 보석을 모으고 수집형 BT 카드를 수집해 보세요!
           </p>
-          <button class="btn-pill" style="width:auto; padding:14px 32px; font-size:16px; font-weight:800; box-shadow:0 8px 20px rgba(255,102,175,0.3);" onclick="openStudentSelectModal()">
+          <button class="btn-pill btn-cta" style="width:auto; padding:14px 34px; font-size:16px; font-weight:800;" onclick="openStudentSelectModal()">
             🚀 지금 시작하기 (학생/교사 로그인)
           </button>
         </div>
@@ -209,7 +209,7 @@
         
         <div class="card">
           <textarea id="gratitude-input" placeholder="하나님께 감사한 내용을 작성하세요 (작성 시 도장 +1)" style="width:100%; height:80px; padding:12px; border:1px solid var(--border); border-radius:12px; resize:none; outline:none; font-size:14px; margin-bottom:12px;"></textarea>
-          <button id="gratitude-submit-btn" class="btn-pill" onclick="onSubmitGratitude()">🙏 감사 나누기 (+1 도장)</button>
+          <button id="gratitude-submit-btn" class="btn-pill btn-cta" onclick="onSubmitGratitude()">🙏 감사 나누기 (+1 도장)</button>
         </div>
 
         <div id="gratitude-feed-list">
@@ -269,7 +269,7 @@
           </div>
 
           <!-- 환전 실행 버튼 -->
-          <button id="btn-exchange-action" class="btn-pill" onclick="onExchangeStampsToGems()">
+          <button id="btn-exchange-action" class="btn-pill btn-exchange-cta" onclick="onExchangeStampsToGems()">
             💎 도장 10개 ➔ 보석 1개 교환하기
           </button>
         </div>
@@ -354,7 +354,7 @@
             <button class="btn-pill" style="width:100%; font-size:14px; padding:12px;" onclick="openRecBooksModal()">📖 성경 66권 체크박스 팝업창 열기 ➔</button>
           </div>
 
-          <div class="card" id="coord-master-setting">
+          <div class="card" id="coord-master-setting" style="display:none; border:1.5px solid var(--primary);">
             <h3 style="font-size:16px; margin-bottom:12px;">🗺️ 맵 오솔길 좌표 마스터 설정 (Master)</h3>
             <p style="font-size:12px; color:var(--muted); margin-bottom:12px;">마스터 권한입니다. 맵을 직접 클릭하여 오솔길 x, y 꺾임 좌표를 쉽게 복사하세요.</p>
             <button class="btn-pill btn-secondary" onclick="switchTab('map'); toggleEditMode();">🎯 메인 맵 클릭 좌표 추출 도구 켜기</button>
@@ -706,18 +706,62 @@
             <label style="font-size:12px; font-weight:700; color:var(--foreground); display:block; margin-bottom:4px;">보석 가격 (개수) *</label>
             <input type="number" id="market-input-price" min="1" value="5" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:10px; font-size:13px;">
           </div>
+          
+          <!-- 대표 비주얼 (사진 첨부 / 이모티콘 / URL 선택) -->
           <div>
-            <label style="font-size:12px; font-weight:700; color:var(--foreground); display:block; margin-bottom:4px;">상품 이미지 URL (웹/구글드라이브 이미지 링크)</label>
-            <input type="text" id="market-input-img" placeholder="https://..." style="width:100%; padding:10px; border:1px solid var(--border); border-radius:10px; font-size:13px;">
+            <label style="font-size:12px; font-weight:700; color:var(--foreground); display:block; margin-bottom:6px;">상품 이미지 / 비주얼 선택 *</label>
+            
+            <div style="display:flex; gap:6px; margin-bottom:8px;">
+              <button type="button" id="tab-visual-file" class="btn-pill" style="flex:1; padding:6px 4px; font-size:11px; background:var(--secondary);" onclick="switchProductVisualType('file')">📷 사진 첨부</button>
+              <button type="button" id="tab-visual-emoji" class="btn-pill btn-secondary" style="flex:1; padding:6px 4px; font-size:11px;" onclick="switchProductVisualType('emoji')">😊 이모티콘</button>
+              <button type="button" id="tab-visual-url" class="btn-pill btn-secondary" style="flex:1; padding:6px 4px; font-size:11px;" onclick="switchProductVisualType('url')">🔗 웹 링크(URL)</button>
+            </div>
+
+            <!-- 1. 사진 첨부 패널 -->
+            <div id="panel-visual-file" style="display:block; padding:12px; background:#f8fafc; border:1.5px dashed var(--border); border-radius:12px; text-align:center;">
+              <input type="file" id="market-input-file" accept="image/*" style="display:none;" onchange="handleProductFileSelect(event)">
+              <button type="button" class="btn-pill btn-secondary" style="width:auto; padding:6px 14px; font-size:12px;" onclick="document.getElementById('market-input-file').click()">📂 내 기기에서 사진 선택</button>
+              <p style="font-size:10px; color:var(--muted); margin-top:5px; margin-bottom:0;">사진을 올리면 자동으로 깨끗한 썸네일로 최적화됩니다.</p>
+            </div>
+
+            <!-- 2. 이모티콘 선택 패널 -->
+            <div id="panel-visual-emoji" style="display:none; padding:10px; background:#f8fafc; border:1px solid var(--border); border-radius:12px;">
+              <p style="font-size:11px; color:var(--muted); margin-bottom:6px; font-weight:700;">상품을 표현할 이모티콘을 터치하세요:</p>
+              <div id="market-emoji-palette" style="display:grid; grid-template-columns:repeat(8, 1fr); gap:6px; text-align:center;">
+                <!-- JS 동적 렌더링 -->
+              </div>
+            </div>
+
+            <!-- 3. URL 입력 패널 -->
+            <div id="panel-visual-url" style="display:none;">
+              <input type="text" id="market-input-img" placeholder="https://..." style="width:100%; padding:10px; border:1px solid var(--border); border-radius:10px; font-size:13px;" oninput="onProductUrlInput(this.value)">
+            </div>
+
+            <!-- 실시간 미리보기 -->
+            <div style="display:flex; align-items:center; gap:12px; margin-top:8px; padding:8px 12px; background:#f8fafc; border:1px solid var(--border); border-radius:12px;">
+              <div id="market-preview-box" style="width:60px; height:60px; border-radius:10px; background:#fff3f8; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; border:1px solid var(--border);">
+                <span id="market-preview-emoji" style="font-size:30px;">🎁</span>
+                <img id="market-preview-img" src="" alt="미리보기" style="display:none; width:100%; height:100%; object-fit:cover;">
+              </div>
+              <div style="flex:1; min-width:0;">
+                <div style="font-size:11px; font-weight:800; color:var(--muted);">선택된 상품 비주얼 미리보기</div>
+                <div id="market-preview-text" style="font-size:11px; color:var(--foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">기본 선물상자 (🎁)</div>
+                <button type="button" id="market-preview-clear" style="font-size:10px; color:#ef4444; background:none; border:none; padding:0; cursor:pointer; font-weight:700; margin-top:2px; display:none;" onclick="clearProductVisual()">초기화</button>
+              </div>
+            </div>
+
+            <!-- 최종 저장될 비주얼 데이터 -->
+            <input type="hidden" id="market-visual-value" value="">
           </div>
+
           <div>
             <label style="font-size:12px; font-weight:700; color:var(--foreground); display:block; margin-bottom:4px;">상세 설명 / 교환 안내</label>
-            <textarea id="market-input-desc" placeholder="교환 수령 장소, 교환 방법 등 안내 문구" style="width:100%; height:60px; padding:10px; border:1px solid var(--border); border-radius:10px; font-size:13px; resize:none;"></textarea>
+            <textarea id="market-input-desc" placeholder="교환 수령 장소, 교환 방법 등 안내 문구" style="width:100%; height:55px; padding:10px; border:1px solid var(--border); border-radius:10px; font-size:13px; resize:none;"></textarea>
           </div>
         </div>
         <div style="margin-top:16px; display:flex; gap:8px;">
           <button class="btn-pill btn-secondary" style="flex:1;" onclick="closeMarketAdminModal()">취소</button>
-          <button class="btn-pill" style="flex:1; background:var(--secondary);" onclick="saveMarketProductAdmin()">💾 저장하기</button>
+          <button class="btn-pill btn-exchange-cta" style="flex:1;" onclick="saveMarketProductAdmin()">💾 저장하기</button>
         </div>
       </div>
     </div>

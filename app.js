@@ -10,6 +10,7 @@
     sessionToken: localStorage.getItem("bt_session_token") || null,
     teacherToken: null,
     isTeacher: false,
+    isMasterAdmin: sessionStorage.getItem("bt_is_master_admin") === "true",
     student: null,
     selectedStudentId: null,
     activeMapId: "M01",
@@ -417,7 +418,7 @@
         const teacherPin = data ? data.value.trim() : "7777";
         if (String(pin).trim() === teacherPin) {
           const tToken = `TEACHER_TOKEN_${Date.now()}`;
-          return { success: true, token: tToken, teacherToken: tToken, isTeacher: true };
+          return { success: true, token: tToken, teacherToken: tToken, isTeacher: true, isMasterAdmin: true };
         }
         return { success: false, error: "관리자 PIN이 일치하지 않습니다." };
       }
@@ -893,7 +894,9 @@
         state.student = JSON.parse(savedStudent);
         if (state.student && String(state.student.department).indexOf("교사") !== -1) {
           state.isTeacher = true;
+          state.isMasterAdmin = false;
           state.teacherToken = "TEACHER_TOKEN_" + state.student.studentId;
+          sessionStorage.removeItem("bt_is_master_admin");
         }
         updateUserHeader();
       }
@@ -2420,7 +2423,9 @@
 
       if (res.student && String(res.student.department).indexOf("교사") !== -1) {
         state.isTeacher = true;
+        state.isMasterAdmin = false;
         state.teacherToken = "TEACHER_TOKEN_" + res.student.studentId;
+        sessionStorage.removeItem("bt_is_master_admin");
       } else if (state.isTeacher) {
         onTeacherLogout(true);
       }
@@ -2457,7 +2462,9 @@
       }
 
       state.isTeacher = true;
+      state.isMasterAdmin = true;
       state.teacherToken = res.token;
+      sessionStorage.setItem("bt_is_master_admin", "true");
 
       showToast("👩‍🏫 교사 및 관리자 인증 성공!");
       
@@ -2469,12 +2476,15 @@
 
       updateUserHeader();
       loadCardDex();
+      loadTeacherDashboard();
     });
   }
 
   function onTeacherLogout(isAuto) {
     state.isTeacher = false;
+    state.isMasterAdmin = false;
     state.teacherToken = null;
+    sessionStorage.removeItem("bt_is_master_admin");
     
     var authBox = document.getElementById("teacher-auth-box");
     var panel = document.getElementById("teacher-panel");
@@ -2664,13 +2674,15 @@
     if (state.isTeacher || isGeneralTeacher) { 
       if (authBox) authBox.style.display = "none";
       if (panel) panel.style.display = "block";
-      if (coordSetting) coordSetting.style.display = state.isTeacher ? "block" : "none";
-      if (dateSetting) dateSetting.style.display = state.isTeacher ? "block" : "none";
+      // 🚨 마스터 설정(맵 좌표 추출 도구, 오픈 시작일 변경 가이드)은 7777 마스터 관리자 PIN 인증 시에만 노출 (일반 교사는 숨김)
+      if (coordSetting) coordSetting.style.display = state.isMasterAdmin ? "block" : "none";
+      if (dateSetting) dateSetting.style.display = state.isMasterAdmin ? "block" : "none";
       renderRecBooksSummaryText();
       renderTeacherMarketAdminList();
     } else { 
       if (authBox) authBox.style.display = "block";
       if (panel) panel.style.display = "none";
+      if (coordSetting) coordSetting.style.display = "none";
       if (dateSetting) dateSetting.style.display = "none";
     }
   }
@@ -2948,8 +2960,9 @@
         html += '</div></div>' +
                 '<p style="font-size:14px; line-height:1.5; color:var(--foreground); margin-bottom:10px;" id="grat-body-' + g.id + '">' + g.body + '</p>' +
                 '<div style="display:flex; justify-content:flex-end;">' +
-                  '<button onclick="onLikeGratitude(\'' + g.id + '\')" style="background:' + heartBg + '; border:1px solid ' + (g.isLikedByMe ? '#fca5a5' : 'var(--border)') + '; color:' + heartColor + '; padding:4px 12px; border-radius:14px; font-size:12px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:4px;">' +
-                    heartText +
+                  '<button class="btn-heart-like ' + (g.isLikedByMe ? 'liked' : '') + '" onclick="onLikeGratitude(\'' + g.id + '\', this)" title="격려와 축복의 좋아요">' +
+                    '<span class="heart-icon">' + (g.isLikedByMe ? '❤️' : '🤍') + '</span>' +
+                    '<span class="like-count">' + (g.likeCount || 0) + '</span>' +
                   '</button>' +
                 '</div>';
         
@@ -2988,9 +3001,26 @@
     }
   }
 
-  // 💖 좋아요 클릭 핸들러
-  function onLikeGratitude(gratId) {
+  // 💖 좋아요 클릭 핸들러 (인터랙티브 햅틱 + 하트 팝핑 애니메이션)
+  function onLikeGratitude(gratId, btnEl) {
     if (!state.sessionToken) return showToast("로그인이 필요합니다.");
+
+    // 모바일 햅틱 진동 피드백
+    if (window.navigator && typeof window.navigator.vibrate === "function") {
+      try { window.navigator.vibrate(40); } catch(e) {}
+    }
+
+    // 하트 팝핑 애니메이션 발동
+    if (btnEl) {
+      btnEl.classList.add("animating");
+      var icon = btnEl.querySelector(".heart-icon");
+      if (icon && !btnEl.classList.contains("liked")) {
+        icon.textContent = "❤️";
+      }
+      setTimeout(function() {
+        if (btnEl) btnEl.classList.remove("animating");
+      }, 600);
+    }
 
     apiCall("likeGratitudeEntry", state.sessionToken, gratId).then(function(res) {
       if (res && res.success) {
@@ -3003,6 +3033,10 @@
         loadGratitudeFeed();
       } else {
         showToast(res ? res.error : "좋아요 처리 실패");
+        if (btnEl && !btnEl.classList.contains("liked")) {
+          var icon = btnEl.querySelector(".heart-icon");
+          if (icon) icon.textContent = "🤍";
+        }
       }
     });
   }
@@ -3227,11 +3261,16 @@
       res.products.forEach(function(p) {
         if (!p.isAvailable) return;
         var card = document.createElement("div");
-        card.style.cssText = "background:#ffffff; border:1.5px solid var(--border); border-radius:14px; padding:10px; text-align:center; display:flex; flex-direction:column; justify-content:space-between; box-shadow:0 2px 6px rgba(0,0,0,0.03);";
+        card.className = "market-product-card";
         
-        var imgHtml = p.imageUrl 
-          ? '<img src="' + p.imageUrl + '" style="width:100%; height:90px; object-fit:cover; border-radius:10px; margin-bottom:8px;" onerror="this.src=\'https://via.placeholder.com/150?text=🎁\';">'
-          : '<div style="width:100%; height:80px; background:#fff3f8; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:32px; margin-bottom:8px;">🎁</div>';
+        var imgHtml = "";
+        if (p.imageUrl && p.imageUrl.startsWith("emoji:")) {
+          imgHtml = '<div style="width:100%; height:90px; background:#fff3f8; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:46px; margin-bottom:8px;">' + p.imageUrl.slice(6) + '</div>';
+        } else if (p.imageUrl) {
+          imgHtml = '<img src="' + p.imageUrl + '" style="width:100%; height:90px; object-fit:cover; border-radius:12px; margin-bottom:8px;" onerror="this.outerHTML=\'<div style=\\\'width:100%; height:90px; background:#fff3f8; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:46px; margin-bottom:8px;\\\'>🎁</div>\';">';
+        } else {
+          imgHtml = '<div style="width:100%; height:90px; background:#fff3f8; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:46px; margin-bottom:8px;">🎁</div>';
+        }
 
         card.innerHTML = imgHtml +
           '<div style="flex:1; display:flex; flex-direction:column; justify-content:space-between;">' +
@@ -3241,7 +3280,7 @@
             '</div>' +
             '<div>' +
               '<div style="font-size:13px; font-weight:800; color:var(--secondary); margin-bottom:6px;">💎 보석 ' + p.gemPrice + '개</div>' +
-              '<button class="btn-pill" style="width:100%; padding:6px; font-size:12px; background:var(--secondary);" onclick="onExchangeMarketProduct(\'' + p.id + '\')">💎 교환하기</button>' +
+              '<button class="btn-pill btn-exchange-cta" style="width:100%; padding:8px 6px; font-size:12px;" onclick="onExchangeMarketProduct(\'' + p.id + '\')">💎 교환하기</button>' +
             '</div>' +
           '</div>';
 
@@ -3297,12 +3336,25 @@
       container.innerHTML = "";
       res.products.forEach(function(p) {
         var item = document.createElement("div");
-        item.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid var(--border); padding:8px 12px; border-radius:10px; font-size:13px;";
+        item.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid var(--border); padding:8px 12px; border-radius:10px; font-size:13px; margin-bottom:6px;";
+        
+        var visualHtml = "";
+        if (p.imageUrl && p.imageUrl.startsWith("emoji:")) {
+          visualHtml = '<span style="font-size:24px; margin-right:8px; vertical-align:middle;">' + p.imageUrl.slice(6) + '</span>';
+        } else if (p.imageUrl) {
+          visualHtml = '<img src="' + p.imageUrl + '" style="width:30px; height:30px; object-fit:cover; border-radius:6px; margin-right:8px; vertical-align:middle;" onerror="this.outerHTML=\'<span style=\\\'font-size:24px; margin-right:8px; vertical-align:middle;\\\'>🎁</span>\';">';
+        } else {
+          visualHtml = '<span style="font-size:24px; margin-right:8px; vertical-align:middle;">🎁</span>';
+        }
+
         item.innerHTML = 
-          '<div>' +
-            '<span style="font-weight:800; color:var(--foreground);">' + p.name + '</span> ' +
-            '<span style="font-size:12px; font-weight:800; color:var(--secondary); background:#fff0f7; padding:2px 6px; border-radius:6px;">💎 ' + p.gemPrice + '개</span>' +
-            (p.description ? '<div style="font-size:11px; color:var(--muted); margin-top:2px;">' + p.description + '</div>' : '') +
+          '<div style="display:flex; align-items:center; min-width:0; padding-right:8px;">' +
+            visualHtml +
+            '<div style="min-width:0;">' +
+              '<span style="font-weight:800; color:var(--foreground);">' + p.name + '</span> ' +
+              '<span style="font-size:12px; font-weight:800; color:var(--secondary); background:#fff0f7; padding:2px 6px; border-radius:6px;">💎 ' + p.gemPrice + '개</span>' +
+              (p.description ? '<div style="font-size:11px; color:var(--muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + p.description + '</div>' : '') +
+            '</div>' +
           '</div>' +
           '<div style="display:flex; gap:6px; flex-shrink:0;">' +
             '<button class="btn-pill btn-secondary" style="width:auto; padding:4px 8px; font-size:11px;" onclick="openMarketAdminModal(\'' + p.id + '\')">✏️ 수정</button>' +
@@ -3313,16 +3365,181 @@
     });
   }
 
+  // 🛍️ 마켓 상품 사진 첨부 / 이모티콘 / URL 비주얼 헬퍼 함수군
+  var MARKET_EMOJIS = [
+    "🎁", "🍦", "🍔", "🍕", "🧃", "🍫", "🍭", "🍩",
+    "📚", "✏️", "🎒", "🧸", "⚽", "🎮", "🎟️", "🏷️",
+    "⭐", "👑", "✝️", "✨", "🎉", "🍪", "🥤", "🎨"
+  ];
+
+  function initMarketEmojiPalette() {
+    var palette = document.getElementById("market-emoji-palette");
+    if (!palette || palette.children.length > 0) return;
+    palette.innerHTML = "";
+    MARKET_EMOJIS.forEach(function(em) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "market-emoji-btn";
+      btn.textContent = em;
+      btn.onclick = function() { selectProductEmoji(em); };
+      palette.appendChild(btn);
+    });
+  }
+
+  function switchProductVisualType(type) {
+    var tabFile = document.getElementById("tab-visual-file");
+    var tabEmoji = document.getElementById("tab-visual-emoji");
+    var tabUrl = document.getElementById("tab-visual-url");
+    var panelFile = document.getElementById("panel-visual-file");
+    var panelEmoji = document.getElementById("panel-visual-emoji");
+    var panelUrl = document.getElementById("panel-visual-url");
+
+    if (!tabFile || !panelFile) return;
+
+    [tabFile, tabEmoji, tabUrl].forEach(function(t) {
+      if (t) {
+        t.className = "btn-pill btn-secondary";
+        t.style.background = "";
+        t.style.color = "";
+      }
+    });
+    [panelFile, panelEmoji, panelUrl].forEach(function(p) {
+      if (p) p.style.display = "none";
+    });
+
+    if (type === "emoji") {
+      tabEmoji.className = "btn-pill";
+      tabEmoji.style.background = "var(--secondary)";
+      tabEmoji.style.color = "#ffffff";
+      panelEmoji.style.display = "block";
+      initMarketEmojiPalette();
+    } else if (type === "url") {
+      tabUrl.className = "btn-pill";
+      tabUrl.style.background = "var(--secondary)";
+      tabUrl.style.color = "#ffffff";
+      panelUrl.style.display = "block";
+    } else {
+      tabFile.className = "btn-pill";
+      tabFile.style.background = "var(--secondary)";
+      tabFile.style.color = "#ffffff";
+      panelFile.style.display = "block";
+    }
+  }
+
+  function setProductVisualPreview(type, val) {
+    var hiddenVal = document.getElementById("market-visual-value");
+    var prevEmoji = document.getElementById("market-preview-emoji");
+    var prevImg = document.getElementById("market-preview-img");
+    var prevText = document.getElementById("market-preview-text");
+    var clearBtn = document.getElementById("market-preview-clear");
+
+    if (type === "emoji" && val) {
+      if (hiddenVal) hiddenVal.value = "emoji:" + val;
+      if (prevEmoji) { prevEmoji.textContent = val; prevEmoji.style.display = "block"; }
+      if (prevImg) prevImg.style.display = "none";
+      if (prevText) prevText.textContent = "선택된 이모티콘 (" + val + ")";
+      if (clearBtn) clearBtn.style.display = "inline-block";
+    } else if (type === "img" && val) {
+      if (hiddenVal) hiddenVal.value = val;
+      if (prevEmoji) prevEmoji.style.display = "none";
+      if (prevImg) { prevImg.src = val; prevImg.style.display = "block"; }
+      if (prevText) prevText.textContent = val.startsWith("data:") ? "📷 직접 첨부한 사진 파일" : val;
+      if (clearBtn) clearBtn.style.display = "inline-block";
+    } else {
+      if (hiddenVal) hiddenVal.value = "";
+      if (prevEmoji) { prevEmoji.textContent = "🎁"; prevEmoji.style.display = "block"; }
+      if (prevImg) { prevImg.src = ""; prevImg.style.display = "none"; }
+      if (prevText) prevText.textContent = "기본 선물상자 (🎁)";
+      if (clearBtn) clearBtn.style.display = "none";
+    }
+  }
+
+  function handleProductFileSelect(event) {
+    var file = event && event.target && event.target.files ? event.target.files[0] : null;
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return showToast("이미지 파일만 첨부할 수 있습니다.");
+
+    showToast("📷 사진 압축 및 처리 중...");
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var img = new Image();
+      img.onload = function() {
+        var canvas = document.createElement("canvas");
+        var maxSide = 360;
+        var w = img.width;
+        var h = img.height;
+        if (w > maxSide || h > maxSide) {
+          if (w > h) {
+            h = Math.round((h * maxSide) / w);
+            w = maxSide;
+          } else {
+            w = Math.round((w * maxSide) / h);
+            h = maxSide;
+          }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        var dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+        setProductVisualPreview("img", dataUrl);
+        showToast("📷 사진이 성공적으로 첨부되었습니다!");
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function selectProductEmoji(emoji) {
+    var palette = document.getElementById("market-emoji-palette");
+    if (palette) {
+      var btns = palette.querySelectorAll(".market-emoji-btn");
+      btns.forEach(function(b) {
+        if (b.textContent === emoji) b.classList.add("selected");
+        else b.classList.remove("selected");
+      });
+    }
+    setProductVisualPreview("emoji", emoji);
+  }
+
+  function onProductUrlInput(val) {
+    var trimmed = val ? val.trim() : "";
+    if (trimmed) {
+      setProductVisualPreview("img", trimmed);
+    } else {
+      setProductVisualPreview(null, null);
+    }
+  }
+
+  function clearProductVisual() {
+    var fileInput = document.getElementById("market-input-file");
+    if (fileInput) fileInput.value = "";
+    var urlInput = document.getElementById("market-input-img");
+    if (urlInput) urlInput.value = "";
+    var palette = document.getElementById("market-emoji-palette");
+    if (palette) {
+      var btns = palette.querySelectorAll(".market-emoji-btn");
+      btns.forEach(function(b) { b.classList.remove("selected"); });
+    }
+    setProductVisualPreview(null, null);
+  }
+
+  window.switchProductVisualType = switchProductVisualType;
+  window.handleProductFileSelect = handleProductFileSelect;
+  window.selectProductEmoji = selectProductEmoji;
+  window.onProductUrlInput = onProductUrlInput;
+  window.clearProductVisual = clearProductVisual;
+
   function openMarketAdminModal(productId) {
     var modal = document.getElementById("modal-market-admin");
     var titleEl = document.getElementById("market-admin-modal-title");
     var editIdEl = document.getElementById("market-edit-id");
     var nameIn = document.getElementById("market-input-name");
     var priceIn = document.getElementById("market-input-price");
-    var imgIn = document.getElementById("market-input-img");
     var descIn = document.getElementById("market-input-desc");
 
     if (!modal) return;
+    initMarketEmojiPalette();
 
     if (productId) {
       if (titleEl) titleEl.textContent = "🛍️ 마켓 상품 수정";
@@ -3333,8 +3550,26 @@
           if (p) {
             if (nameIn) nameIn.value = p.name || "";
             if (priceIn) priceIn.value = p.gemPrice || 5;
-            if (imgIn) imgIn.value = p.imageUrl || "";
             if (descIn) descIn.value = p.description || "";
+            
+            // 기존 비주얼 복원
+            var imgVal = p.imageUrl || "";
+            if (imgVal.startsWith("emoji:")) {
+              var em = imgVal.slice(6);
+              switchProductVisualType("emoji");
+              selectProductEmoji(em);
+            } else if (imgVal.startsWith("data:")) {
+              switchProductVisualType("file");
+              setProductVisualPreview("img", imgVal);
+            } else if (imgVal.startsWith("http")) {
+              switchProductVisualType("url");
+              var urlInput = document.getElementById("market-input-img");
+              if (urlInput) urlInput.value = imgVal;
+              setProductVisualPreview("img", imgVal);
+            } else {
+              switchProductVisualType("file");
+              clearProductVisual();
+            }
           }
         }
       });
@@ -3343,8 +3578,9 @@
       if (editIdEl) editIdEl.value = "";
       if (nameIn) nameIn.value = "";
       if (priceIn) priceIn.value = "5";
-      if (imgIn) imgIn.value = "";
       if (descIn) descIn.value = "";
+      switchProductVisualType("file");
+      clearProductVisual();
     }
 
     modal.classList.add("active");
@@ -3363,8 +3599,13 @@
     var editId = document.getElementById("market-edit-id").value;
     var name = document.getElementById("market-input-name").value.trim();
     var price = parseInt(document.getElementById("market-input-price").value, 10);
-    var img = document.getElementById("market-input-img").value.trim();
     var desc = document.getElementById("market-input-desc").value.trim();
+
+    var visualVal = document.getElementById("market-visual-value") ? document.getElementById("market-visual-value").value.trim() : "";
+    if (!visualVal) {
+      var urlInput = document.getElementById("market-input-img");
+      if (urlInput && urlInput.value.trim()) visualVal = urlInput.value.trim();
+    }
 
     if (!name) return showToast("상품명을 입력하세요.");
     if (isNaN(price) || price <= 0) return showToast("올바른 보석 수량을 입력하세요.");
@@ -3373,7 +3614,7 @@
       id: editId || null,
       name: name,
       gemPrice: price,
-      imageUrl: img,
+      imageUrl: visualVal,
       description: desc,
       isAvailable: true
     };
