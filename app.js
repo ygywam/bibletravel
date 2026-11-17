@@ -2484,7 +2484,7 @@
       // 🚨 도름스 보안 기준: 기본 PIN(0000)으로 로그인한 경우 새로운 PIN으로 직접 변경 유도
       if (pin === "0000") {
         setTimeout(function() {
-          showToast("🔒 기본 PIN(0000)으로 로그인하셨습니다. 안전한 사용을 위해 새로운 4자리 PIN으로 변경해 주세요!");
+          showToast("🔒 초기 기본 비밀번호로 로그인하셨습니다. 안전한 사용을 위해 새로운 4자리 PIN으로 변경해 주세요!");
           openChangePinModal();
           var oldInput = document.getElementById("old-pin-input");
           if (oldInput) oldInput.value = "0000";
@@ -2731,7 +2731,7 @@
       var titleEl = document.getElementById("teacher-panel-role-title");
       var descEl = document.getElementById("teacher-panel-role-desc");
       if (titleEl) {
-        titleEl.textContent = state.isMasterAdmin ? "👑 마스터 관리자 모드 (7777)" : "👩‍🏫 교사 관리자 모드 (" + (state.student ? state.student.name : "선생님") + ")";
+        titleEl.textContent = state.isMasterAdmin ? "👑 마스터 관리자 모드" : "👩‍🏫 교사 관리자 모드 (" + (state.student ? state.student.name : "선생님") + ")";
       }
       if (descEl) {
         descEl.textContent = state.isMasterAdmin ? "마스터 권한: 도감 전량 해금 뷰 및 맵 좌표/오픈일 설정이 활성화되었습니다." : "교사 권한: 학생 관리, 칭찬 도장 부여, 마켓 상품 관리 권한이 활성화되었습니다. (도감은 읽은 만큼만 오픈)";
