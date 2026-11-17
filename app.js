@@ -8,8 +8,8 @@
   // 애플리케이션 전역 상태 관리
   var state = {
     sessionToken: localStorage.getItem("bt_session_token") || null,
-    teacherToken: null,
-    isTeacher: false,
+    teacherToken: sessionStorage.getItem("bt_teacher_token") || null,
+    isTeacher: sessionStorage.getItem("bt_is_master_admin") === "true",
     isMasterAdmin: sessionStorage.getItem("bt_is_master_admin") === "true",
     student: null,
     selectedStudentId: null,
@@ -897,6 +897,7 @@
           state.isMasterAdmin = false;
           state.teacherToken = "TEACHER_TOKEN_" + state.student.studentId;
           sessionStorage.removeItem("bt_is_master_admin");
+          sessionStorage.removeItem("bt_teacher_token");
         }
         updateUserHeader();
       }
@@ -2426,6 +2427,7 @@
         state.isMasterAdmin = false;
         state.teacherToken = "TEACHER_TOKEN_" + res.student.studentId;
         sessionStorage.removeItem("bt_is_master_admin");
+        sessionStorage.removeItem("bt_teacher_token");
       } else if (state.isTeacher) {
         onTeacherLogout(true);
       }
@@ -2465,8 +2467,9 @@
       state.isMasterAdmin = true;
       state.teacherToken = res.token;
       sessionStorage.setItem("bt_is_master_admin", "true");
+      sessionStorage.setItem("bt_teacher_token", res.token);
 
-      showToast("👩‍🏫 교사 및 관리자 인증 성공!");
+      showToast("👑 마스터 관리자 인증 성공! (도감 전량 해금)");
       
       var authBox = document.getElementById("teacher-auth-box");
       var panel = document.getElementById("teacher-panel");
@@ -2485,6 +2488,7 @@
     state.isMasterAdmin = false;
     state.teacherToken = null;
     sessionStorage.removeItem("bt_is_master_admin");
+    sessionStorage.removeItem("bt_teacher_token");
     
     var authBox = document.getElementById("teacher-auth-box");
     var panel = document.getElementById("teacher-panel");
@@ -2677,6 +2681,16 @@
       // 🚨 마스터 설정(맵 좌표 추출 도구, 오픈 시작일 변경 가이드)은 7777 마스터 관리자 PIN 인증 시에만 노출 (일반 교사는 숨김)
       if (coordSetting) coordSetting.style.display = state.isMasterAdmin ? "block" : "none";
       if (dateSetting) dateSetting.style.display = state.isMasterAdmin ? "block" : "none";
+
+      var titleEl = document.getElementById("teacher-panel-role-title");
+      var descEl = document.getElementById("teacher-panel-role-desc");
+      if (titleEl) {
+        titleEl.textContent = state.isMasterAdmin ? "👑 마스터 관리자 모드 (7777)" : "👩‍🏫 교사 관리자 모드 (" + (state.student ? state.student.name : "선생님") + ")";
+      }
+      if (descEl) {
+        descEl.textContent = state.isMasterAdmin ? "마스터 권한: 도감 전량 해금 뷰 및 맵 좌표/오픈일 설정이 활성화되었습니다." : "교사 권한: 학생 관리, 칭찬 도장 부여, 마켓 상품 관리 권한이 활성화되었습니다. (도감은 읽은 만큼만 오픈)";
+      }
+
       renderRecBooksSummaryText();
       renderTeacherMarketAdminList();
     } else { 
@@ -2797,18 +2811,22 @@
         res = { success: true, cards: [], totalCount: 66, unlockedCount: 0 };
       }
 
-      var isTeacher = (state.isTeacher === true);
-      var totalUnlocked = isTeacher ? 66 : (res.unlockedCount || 0);
+      // 🚨 대원칙: 마스터(7777 PIN) 로그인 시에만 카드 도감 전량(66권) 오픈!
+      // 학생 및 교사는 오로지 본인이 성경을 읽은 만큼만 오픈.
+      var isMaster = (state.isMasterAdmin === true);
+      var totalUnlocked = isMaster ? 66 : (res.unlockedCount || 0);
       
       var progressEl = document.getElementById("dex-progress");
-      if (progressEl) progressEl.textContent = totalUnlocked + " / " + res.totalCount + " 완독";
+      if (progressEl) {
+        progressEl.textContent = totalUnlocked + " / " + res.totalCount + " 완독" + (isMaster ? " (👑 마스터 전량 오픈)" : "");
+      }
       
       grid.innerHTML = "";
 
       var cardList = (res.cards && res.cards.length > 0) ? res.cards : [];
 
       cardList.forEach(function(c) {
-        var isUnlocked = isTeacher || (c.isUnlocked === true);
+        var isUnlocked = isMaster || (c.isUnlocked === true);
         var item = document.createElement("div");
         item.className = "card-dex-item" + (isUnlocked ? " unlocked" : "");
 
