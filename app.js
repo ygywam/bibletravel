@@ -84,6 +84,14 @@
 
   // Promise 기반 google.script.run 안전 래퍼
   
+  // 교사/관리자 권한 판별 유틸리티 (마스터 PIN 로그인 또는 소속 부서가 '교사'인 계정 모두 관리 권한 부여)
+  function isUserTeacher(token) {
+    if (state.isTeacher) return true;
+    if (token && String(token).startsWith("TEACHER_TOKEN_")) return true;
+    if (state.student && String(state.student.department).indexOf("교사") !== -1) return true;
+    return false;
+  }
+
   // Supabase 직결 초고속 API 통신 래퍼 (GAS 2~5초 -> Supabase 0.05초)
   async function apiCall(funcName) {
     const args = Array.prototype.slice.call(arguments, 1);
@@ -417,7 +425,7 @@
       if (funcName === "saveRecommendedBooks") {
         const teacherToken = args[0];
         const selectedIds = args[1] || [];
-        if (!teacherToken && !state.isTeacher) return { success: false, error: "관리자 권한이 필요합니다." };
+        if (!isUserTeacher(teacherToken)) return { success: false, error: "관리자(교사) 권한이 필요합니다." };
         await sb.from('travel_settings').upsert({ key: 'RECOMMENDED_BOOKS', value: selectedIds.join(',') });
         return { success: true, recommendedBooks: selectedIds };
       }
@@ -712,21 +720,13 @@
         if (data && data.value) {
           try { products = JSON.parse(data.value); } catch(e) {}
         }
-        if (!products || products.length === 0) {
-          products = [
-            { id: "MKT_01", name: "달콤 간식 세트 🍭", gemPrice: 2, imageUrl: "", description: "성경학교 특별 간식 꾸러미", isAvailable: true, createdAt: "2026-11-17" },
-            { id: "MKT_02", name: "캐릭터 문구 세트 ✏️", gemPrice: 3, imageUrl: "", description: "귀여운 주일학교 필기구 세트", isAvailable: true, createdAt: "2026-11-17" },
-            { id: "MKT_03", name: "문화상품권 (5천원권) 🎟️", gemPrice: 5, imageUrl: "", description: "원하는 책이나 물품을 살 수 있는 상품권", isAvailable: true, createdAt: "2026-11-17" }
-          ];
-          await sb.from('travel_settings').upsert({ key: 'MARKET_PRODUCTS', value: JSON.stringify(products) });
-        }
-        return { success: true, products: products };
+        return { success: true, products: Array.isArray(products) ? products : [] };
       }
 
       if (funcName === "saveMarketProduct") {
         const teacherToken = args[0];
         const product = args[1];
-        if (!teacherToken && !state.isTeacher) return { success: false, error: "관리자 권한이 필요합니다." };
+        if (!isUserTeacher(teacherToken)) return { success: false, error: "관리자(교사) 권한이 필요합니다." };
         if (!product || !product.name) return { success: false, error: "상품 정보를 확인해 주세요." };
 
         const { data } = await sb.from('travel_settings').select('value').eq('key', 'MARKET_PRODUCTS').single();
@@ -734,6 +734,7 @@
         if (data && data.value) {
           try { products = JSON.parse(data.value); } catch(e) {}
         }
+        if (!Array.isArray(products)) products = [];
 
         const pId = product.id || ("MKT_" + Date.now());
         const pIndex = products.findIndex(p => p.id === pId);
@@ -760,15 +761,16 @@
       if (funcName === "deleteMarketProduct") {
         const teacherToken = args[0];
         const productId = args[1];
-        if (!teacherToken && !state.isTeacher) return { success: false, error: "관리자 권한이 필요합니다." };
+        if (!isUserTeacher(teacherToken)) return { success: false, error: "관리자(교사) 권한이 필요합니다." };
 
         const { data } = await sb.from('travel_settings').select('value').eq('key', 'MARKET_PRODUCTS').single();
         let products = [];
         if (data && data.value) {
           try { products = JSON.parse(data.value); } catch(e) {}
         }
+        if (!Array.isArray(products)) products = [];
 
-        products = products.filter(p => p.id !== productId);
+        products = products.filter(p => String(p.id).trim() !== String(productId).trim());
         await sb.from('travel_settings').upsert({ key: 'MARKET_PRODUCTS', value: JSON.stringify(products) });
         return { success: true };
       }
@@ -840,7 +842,7 @@
         const studentId = args[1];
         const amount = Number(args[2]) || 1;
         const reason = args[3] || '선생님 칭찬도장';
-        if (!teacherToken) return { success: false, error: "관리자 권한이 필요합니다." };
+        if (!isUserTeacher(teacherToken)) return { success: false, error: "관리자(교사) 권한이 필요합니다." };
         const { data: s } = await sb.from('travel_students').select('stamp_balance').eq('student_id', studentId).single();
         const newStamp = (s ? s.stamp_balance : 0) + amount;
         await sb.from('travel_students').update({ stamp_balance: newStamp }).eq('student_id', studentId);
@@ -889,6 +891,10 @@
       if (savedToken && savedStudent) {
         state.sessionToken = savedToken;
         state.student = JSON.parse(savedStudent);
+        if (state.student && String(state.student.department).indexOf("교사") !== -1) {
+          state.isTeacher = true;
+          state.teacherToken = "TEACHER_TOKEN_" + state.student.studentId;
+        }
         updateUserHeader();
       }
     } catch(e) {
@@ -2409,12 +2415,15 @@
     apiCall("verifyStudentPin", sId, pin).then(function(res) {
       if (!res.success) return showToast(res.error || "PIN 번호가 일치하지 않습니다.");
 
-      if (state.isTeacher) {
-        onTeacherLogout(true);
-      }
-
       state.sessionToken = res.sessionToken;
       state.student = res.student;
+
+      if (res.student && String(res.student.department).indexOf("교사") !== -1) {
+        state.isTeacher = true;
+        state.teacherToken = "TEACHER_TOKEN_" + res.student.studentId;
+      } else if (state.isTeacher) {
+        onTeacherLogout(true);
+      }
       
       localStorage.setItem("bt_session_token", res.sessionToken);
       localStorage.setItem("bt_student_data", JSON.stringify(res.student));
