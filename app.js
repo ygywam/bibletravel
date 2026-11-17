@@ -686,10 +686,8 @@
         const nextNum = maxNum + 1;
         const nextId = "S" + String(nextNum).padStart(3, '0');
 
-        let pin = "";
-        do {
-          pin = String(Math.floor(1000 + Math.random() * 9000));
-        } while (pins.includes(pin));
+        // 🚨 도름스/보안 기준: 신규 사용자 등록 시 기본 비밀번호는 '0000'으로 통일하고, 첫 로그인 시 본인이 직접 변경하도록 유도
+        const pin = "0000";
 
         const emojis = ["🦁", "⛵", "👑", "🚀", "🦄", "🐬", "🐼", "🎨", "⚽", "🎸"];
         const colors = ["#ff66af", "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ec4899"];
@@ -1084,6 +1082,28 @@
     }
   }
 
+  // 저작권 및 이용안내 모달 제어 (도름스 edu_share 기준)
+  function openTermsModal() {
+    var modal = document.getElementById("modal-terms");
+    if (modal) {
+      modal.classList.add("active");
+      modal.style.display = "flex";
+    }
+  }
+
+  function closeTermsModal() {
+    var modal = document.getElementById("modal-terms");
+    if (modal) {
+      modal.classList.remove("active");
+      modal.style.display = "none";
+    }
+  }
+
+  window.openPrivacyModal = openPrivacyModal;
+  window.closePrivacyModal = closePrivacyModal;
+  window.openTermsModal = openTermsModal;
+  window.closeTermsModal = closeTermsModal;
+
   function switchPwaTab(type) {
     var tabIos = document.getElementById("pwa-tab-ios");
     var tabAnd = document.getElementById("pwa-tab-android");
@@ -1120,6 +1140,10 @@
   }
 
   function switchTab(viewId) {
+    if (viewId === "teacher" && !state.isTeacher && !state.isMasterAdmin) {
+      showToast("관리자 권한이 필요합니다.");
+      return;
+    }
     showView(viewId);
 
     if (viewId === "map") loadMapView(state.activeMapId);
@@ -2247,12 +2271,24 @@
       if (selectBtn) selectBtn.style.display = "inline-block";
       if (profileBadge) profileBadge.style.display = "none";
     }
+
+    // 🚨 학생은 하단 관리자 메뉴를 숨기고 홈/유형 맵/BT 도감/감사/상점 (5개)만 노출, 교사/마스터 관리자만 관리자 탭 노출
+    var navTeacher = document.getElementById("nav-item-teacher");
+    var isTeacherOrMaster = (state.isTeacher === true || state.isMasterAdmin === true);
+    if (navTeacher) {
+      navTeacher.style.display = isTeacherOrMaster ? "flex" : "none";
+    }
   }
 
   // 6. 🚪 로그아웃 시 세션 고정값 초기화
   function onLogout() {
     state.sessionToken = null;
     state.student = null;
+    state.isTeacher = false;
+    state.isMasterAdmin = false;
+    state.teacherToken = null;
+    sessionStorage.removeItem("bt_is_master_admin");
+    sessionStorage.removeItem("bt_teacher_token");
     state.fixedDailyMission = null; // 고정값 리셋
     localStorage.removeItem("bt_session_token");
     localStorage.removeItem("bt_student_data");
@@ -2444,6 +2480,16 @@
       updateUserHeader();
       switchTab("home");
       loadMapView(state.activeMapId);
+
+      // 🚨 도름스 보안 기준: 기본 PIN(0000)으로 로그인한 경우 새로운 PIN으로 직접 변경 유도
+      if (pin === "0000") {
+        setTimeout(function() {
+          showToast("🔒 기본 PIN(0000)으로 로그인하셨습니다. 안전한 사용을 위해 새로운 4자리 PIN으로 변경해 주세요!");
+          openChangePinModal();
+          var oldInput = document.getElementById("old-pin-input");
+          if (oldInput) oldInput.value = "0000";
+        }, 800);
+      }
     });
   }
 
@@ -2885,7 +2931,7 @@
     if (!name) return showToast("이름을 입력하세요.");
     apiCall("registerStudent", name, dept).then(function(res) {
       if (!res.success) return showToast(res.error);
-      showToast("등록 성공! 발급된 PIN: " + res.pin);
+      showToast("🎉 " + res.name + " 등록 완료! 초기 PIN은 '0000'이며, 첫 로그인 시 직접 변경하게 됩니다.");
       if (nameEl) nameEl.value = "";
     });
   }

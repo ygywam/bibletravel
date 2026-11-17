@@ -316,7 +316,8 @@
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;">
               <input type="text" id="new-student-name" placeholder="이름 (학생/선생님)" style="padding:10px; border:1px solid var(--border); border-radius:12px; font-size:14px;">
               <input type="text" id="new-student-dept" placeholder="부서 (예: 초등부, 교사)" value="초등부" style="padding:10px; border:1px solid var(--border); border-radius:12px; font-size:14px;">
-              <button class="btn-pill" onclick="onCreateStudent()">+ 등록하기 (PIN/이모지/카드색 자동발급)</button>
+              <button class="btn-pill" onclick="onCreateStudent()">+ 등록하기 (기본 PIN: 0000 발급)</button>
+              <p style="font-size:11px; color:var(--muted); margin:4px 0 0 2px;">* 신규 등록 시 기본 PIN은 '0000'으로 발급되며, 첫 로그인 시 본인이 직접 4자리 PIN으로 변경하게 됩니다.</p>
             </div>
           </div>
           
@@ -372,8 +373,12 @@
       <footer class="app-footer">
         <p class="footer-author">만든이: 회정교회 조용희 안수집사</p>
         <p class="footer-copy">Copyright © 2026 Hoejeong Church Bible Travel. All rights reserved.</p>
-        <p class="footer-links">
-          <a href="javascript:void(0)" onclick="openPrivacyModal()">개인정보처리방침</a>
+        <p class="footer-links" style="display:flex; justify-content:center; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; margin-top:6px;">
+          <a href="privacy.html" onclick="openPrivacyModal(); return false;" style="font-weight:700;">개인정보처리방침</a>
+          <span style="color:var(--border);">•</span>
+          <a href="terms.html" onclick="openTermsModal(); return false;" style="font-weight:700;">저작권 및 이용안내</a>
+          <span style="color:var(--border);">•</span>
+          <span style="color:var(--muted); font-size:11px;">문의: ygywam83@gmail.com</span>
         </p>
       </footer>
     </main>
@@ -400,33 +405,116 @@
         <span class="nav-icon">🛍️</span>
         <span>상점</span>
       </button>
-      <button class="nav-item" data-view="teacher" onclick="switchTab('teacher')">
+      <button class="nav-item" id="nav-item-teacher" data-view="teacher" onclick="switchTab('teacher')" style="display:none;">
         <span class="nav-icon">⚙️</span>
         <span>관리자</span>
       </button>
     </nav>
 
-    <!-- 개인정보처리방침 모달 -->
+    <!-- 개인정보처리방침 모달 (도름스 및 개인정보보호법 기준 준수) -->
     <div id="modal-privacy" class="modal-overlay">
-      <div class="modal-card" style="max-height:80vh; overflow-y:auto; width:92%; max-width:500px; text-align:left;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:8px;">
-          <h3 style="font-size:16px; font-weight:800; color:var(--foreground);">📜 개인정보처리방침</h3>
+      <div class="modal-card" style="max-height:82vh; overflow-y:auto; width:94%; max-width:540px; text-align:left; padding:22px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1.5px solid var(--border); padding-bottom:10px;">
+          <h3 style="font-size:16px; font-weight:800; color:var(--foreground); margin:0;">📜 개인정보처리방침</h3>
           <button class="btn-pill btn-secondary" style="width:auto; padding:4px 10px; font-size:12px;" onclick="closePrivacyModal()">✕ 닫기</button>
         </div>
-        <div style="font-size:12px; color:var(--foreground); line-height:1.6; display:flex; flex-direction:column; gap:10px;">
-          <p><strong>1. 개인정보의 수집 및 이용 목적</strong><br>
-          회정교회 주일학교 'Bible Travel' 웹앱은 학생 및 교사의 성경 통독 진도 관리, 출석 체크, 감사 나눔 공유 및 카드 보상 제공을 위해 최소한의 개인정보를 수집·이용합니다.</p>
-          <p><strong>2. 수집하는 개인정보 항목</strong><br>
-          - 필수항목: 이름, 소속 부서, 식별용 PIN 번호, 성경 읽기 기록, 감사 나눔 작성 내용</p>
-          <p><strong>3. 개인정보의 보유 및 이용 기간</strong><br>
-          수집된 개인정보는 주일학교 성경 통독 프로그램 운영 기간 동안 안전하게 보관되며, 프로그램 종료 또는 사용자의 삭제 요청 시 지체 없이 파기됩니다.</p>
-          <p><strong>4. 개인정보의 제3자 제공</strong><br>
-          수집된 정보는 교회 내 교육 및 성경 읽기 운영 목적으로만 사용되며, 외부에 제공되거나 상업적 목적으로 활용되지 않습니다.</p>
-          <p><strong>5. 개인정보 보호책임자</strong><br>
-          - 관리자: 회정교회 주일학교 (조용희 안수집사)</p>
+        <div style="font-size:12px; color:var(--foreground); line-height:1.65; display:flex; flex-direction:column; gap:12px;">
+          <p style="background:var(--bg-soft); padding:8px 12px; border-radius:8px; border:1px solid var(--border); margin:0;">
+            회정교회 주일학교 'Bible Travel'은 정보주체(학생, 학부모, 교사)의 자유와 권리를 보호하며 개인정보를 안전하게 관리합니다.
+          </p>
+          <div>
+            <strong>1. 개인정보의 처리 목적</strong>
+            <p style="margin:4px 0 0 0; color:var(--muted);">주일학교 성경 통독 진도 관리, 출석 체크 및 읽기 도장·보석 적립, 감사 나눔 피드 소통, 달란트 마켓 교환 보상 운영을 위해 필요한 최소한의 정보만 처리합니다.</p>
+          </div>
+          <div>
+            <strong>2. 처리하는 개인정보의 항목</strong>
+            <p style="margin:4px 0 0 0; color:var(--muted);">
+              • 필수 항목: 성명, 소속 부서(초등부, 교사 등), 식별용 4자리 PIN 번호, 성경 읽기 로그, 감사 나눔 작성 내용<br>
+              • 주민등록번호, 연락처, 주소, 금융정보 등 불필요한 민감 정보는 일체 수집하지 않습니다.
+            </p>
+          </div>
+          <div>
+            <strong>3. 개인정보의 보유 및 이용 기간</strong>
+            <p style="margin:4px 0 0 0; color:var(--muted);">수집된 개인정보는 주일학교 성경 통독 프로그램 운영 기간 동안 안전하게 보관되며, 프로그램 종료 또는 사용자의 삭제(탈퇴) 요청 시 지체 없이 파기합니다.</p>
+          </div>
+          <div>
+            <strong>4. 개인정보의 파기 절차 및 방법</strong>
+            <p style="margin:4px 0 0 0; color:var(--muted);">보유 기간 경과 또는 처리 목적 달성 시 전자적 파일 형태의 정보는 복구할 수 없는 기술적 방법으로 즉시 영구 삭제합니다.</p>
+          </div>
+          <div>
+            <strong>5. 개인정보의 제3자 제공 및 위탁</strong>
+            <p style="margin:4px 0 0 0; color:var(--muted);">수집된 정보는 교회 내 교육 및 성경 읽기 운영 목적으로만 사용되며, 외부에 제공되거나 상업적으로 활용되지 않습니다. (인프라: Supabase, Vercel 보안 전송 규격 준수)</p>
+          </div>
+          <div>
+            <strong>6. 정보주체(학생 및 보호자)의 권리·의무 및 행사방법</strong>
+            <p style="margin:4px 0 0 0; color:var(--muted);">정보주체는 언제든지 본인의 개인정보 열람, 정정, 삭제, 처리정지를 요청할 수 있으며, 관리자에게 요청 시 즉시 조치됩니다.</p>
+          </div>
+          <div>
+            <strong>7. 개인정보의 안전성 확보 조치</strong>
+            <p style="margin:4px 0 0 0; color:var(--muted);">
+              • 신규 사용자 기본 PIN(0000) 발급 후 첫 로그인 시 비밀번호 강제 변경 유도<br>
+              • 마스터 관리자(7777) 권한 분리 및 HTTPS SSL 전송 암호화 적용
+            </p>
+          </div>
+          <div>
+            <strong>8. 개인정보 보호책임자 및 문의처</strong>
+            <p style="margin:4px 0 0 0; color:var(--muted);">
+              • 개인정보 보호책임자: 회정교회 주일학교 조용희 안수집사<br>
+              • 문의 및 열람·삭제 접수 이메일: ygywam83@gmail.com
+            </p>
+          </div>
+          <p style="font-size:11px; color:var(--muted); margin:0;">공고 및 시행일자: 2026년 11월 18일</p>
         </div>
         <div style="margin-top:16px;">
           <button class="btn-pill" onclick="closePrivacyModal()">확인</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 저작권 및 이용안내 모달 (도름스 edu_share 및 저작권법 기준 준수) -->
+    <div id="modal-terms" class="modal-overlay">
+      <div class="modal-card" style="max-height:82vh; overflow-y:auto; width:94%; max-width:540px; text-align:left; padding:22px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1.5px solid var(--border); padding-bottom:10px;">
+          <h3 style="font-size:16px; font-weight:800; color:var(--foreground); margin:0;">⚖️ 저작권 및 이용안내</h3>
+          <button class="btn-pill btn-secondary" style="width:auto; padding:4px 10px; font-size:12px;" onclick="closeTermsModal()">✕ 닫기</button>
+        </div>
+        <div style="font-size:12px; color:var(--foreground); line-height:1.65; display:flex; flex-direction:column; gap:12px;">
+          <p style="background:var(--bg-soft); padding:8px 12px; border-radius:8px; border:1px solid var(--border); margin:0;">
+            회정교회 주일학교 'Bible Travel'은 다음 세대의 성경 통독을 돕기 위해 비영리 교육 목적으로 기획·제작되었습니다.
+          </p>
+          <div>
+            <strong>1. 저작권의 귀속</strong>
+            <p style="margin:4px 0 0 0; color:var(--muted);">
+              본 웹앱의 전체 기획, 8개 성경 유형 맵 디자인, 66권 BT 수집형 카드 일러스트, 캐릭터 및 프로그램 소스코드의 저작권은 회정교회 조용희 안수집사(원작자)에게 있습니다.
+            </p>
+          </div>
+          <div>
+            <strong>2. 이용 허용 범위 (도름스 edu_share 기준)</strong>
+            <p style="margin:4px 0 0 0; color:var(--muted);">
+              • <strong>그대로 쓰기 (useAsIs):</strong> 주일학교, 교회 학교, 기독교 가정의 비영리 성경 통독 교육 목적으로 누구나 무료로 자유롭게 이용할 수 있습니다.<br>
+              • <strong>링크 공유 (shareOriginalLink):</strong> 성도, 교사, 학부모, 학생에게 앱 원본 주소(https://bibletravel.vercel.app)를 자유롭게 전달·공유할 수 있습니다.<br>
+              • <strong>화면 캡처 및 소개 (screenshotsWithAttribution):</strong> 출처('회정교회 주일학교 Bible Travel')를 밝힌 화면 캡처, 주보 게재, 사역 보고 소개를 환영합니다.<br>
+              • <strong>출력물 활용 (downloadPrint):</strong> 비영리 성경 읽기표 및 BT 카드 인쇄물 출력을 허용합니다.
+            </p>
+          </div>
+          <div>
+            <strong>3. 제한 및 금지 사항</strong>
+            <p style="margin:4px 0 0 0; color:var(--muted);">
+              • <strong>상업적 이용 금지:</strong> 본 앱 또는 수록된 콘텐츠(BT 카드, 맵 이미지 등)를 유료 판매하거나 광고 수익 등 상업적 목적으로 이용하는 것을 엄격히 금지합니다.<br>
+              • <strong>무단 수정 및 재배포:</strong> 원작자의 서면 동의 없이 소스코드를 무단 변형하거나 타 명의로 재배포하는 행위를 금지합니다.<br>
+              • <strong>AI 무단 학습 및 복제 금지:</strong> 앱 내 일러스트 및 성경 콘텐츠, 학생 작성 감사글을 AI 모델 학습용 데이터셋으로 무단 크롤링·업로드·복제할 수 없습니다.
+            </p>
+          </div>
+          <div>
+            <strong>4. 법적 근거 및 문의처</strong>
+            <p style="margin:4px 0 0 0; color:var(--muted);">
+              • 대한민국 저작권법(제12조 성명표시권, 제35조의5 저작물의 공정한 이용, 제37조 출처의 명시) 준수<br>
+              • 이용 관련 문의 및 2차 활용 협의: ygywam83@gmail.com
+            </p>
+          </div>
+        </div>
+        <div style="margin-top:16px;">
+          <button class="btn-pill" onclick="closeTermsModal()">확인</button>
         </div>
       </div>
     </div>

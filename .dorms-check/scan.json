@@ -1,0 +1,673 @@
+{
+  "at": "2026-11-17T22:19:44.472Z",
+  "url": "https://bibletravel.vercel.app",
+  "reachable": false,
+  "results": [
+    {
+      "id": "meta.public-surface",
+      "status": "unknown",
+      "observed": "공개 응답 검사를 완료하지 못했습니다.",
+      "evidence": {
+        "error": "fetch failed"
+      }
+    },
+    {
+      "id": "sec.transport.ssl-valid",
+      "status": "fail",
+      "observed": "공개 HTTPS 연결에서 인증서 오류를 확인했습니다.",
+      "evidence": {
+        "tlsInvalid": true,
+        "errorCode": "SELF_SIGNED_CERT_IN_CHAIN"
+      }
+    },
+    {
+      "id": "meta.public-surface",
+      "status": "unknown",
+      "observed": "공개 응답 검사를 완료하지 못했습니다.",
+      "evidence": {
+        "error": "fetch failed"
+      }
+    },
+    {
+      "id": "code.hardcoded-secret",
+      "status": "pass",
+      "observed": "하드코딩 시크릿 미검출",
+      "evidence": {
+        "hits": [],
+        "inspectedFiles": 2,
+        "readFailures": 0
+      }
+    },
+    {
+      "id": "code.client-secret-leak",
+      "status": "pass",
+      "observed": "클라 시크릿 노출 미검출",
+      "evidence": {
+        "hits": [],
+        "inspectedFiles": 1,
+        "readFailures": 0
+      }
+    },
+    {
+      "id": "code.headers-config",
+      "status": "info",
+      "observed": "헤더 설정 파일에서 보안 헤더 설정을 못 찾음(라이브 관측을 우선 신뢰)",
+      "evidence": {
+        "configuredHeaders": {},
+        "filesScanned": []
+      }
+    },
+    {
+      "id": "code.dangerous-pattern",
+      "status": "info",
+      "observed": "검토가 필요한 위험 패턴 41건(문맥 확인 필요)",
+      "evidence": {
+        "hits": [
+          {
+            "file": "app.js",
+            "line": 1629,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 1677,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2141,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2144,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2150,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2222,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2232,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2246,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2325,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2331,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2335,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2339,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2365,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2604,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2853,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2870,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2880,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2884,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2943,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 2956,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3033,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3252,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3253,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3260,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3261,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3268,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3279,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3281,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3293,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3316,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3320,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3324,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3339,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3392,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3396,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3400,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3414,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3442,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3722,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3730,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3734,
+            "kind": "innerHTML 대입"
+          }
+        ]
+      }
+    },
+    {
+      "id": "code.plain-sensitive-column",
+      "status": "na",
+      "observed": "Supabase 를 쓰지 않아 생략",
+      "evidence": {
+        "notApplicable": true
+      }
+    },
+    {
+      "id": "code.rls.anon-write",
+      "status": "na",
+      "observed": "Supabase 를 쓰지 않아 생략",
+      "evidence": {
+        "notApplicable": true
+      }
+    },
+    {
+      "id": "auth.password-policy",
+      "status": "na",
+      "observed": "Supabase 를 쓰지 않아 생략",
+      "evidence": {
+        "notApplicable": true
+      }
+    },
+    {
+      "id": "storage.upload-limits",
+      "status": "na",
+      "observed": "Supabase 를 쓰지 않아 생략",
+      "evidence": {
+        "notApplicable": true
+      }
+    },
+    {
+      "id": "ops.school-selfcheck",
+      "status": "info",
+      "observed": "코드에서 흔적을 찾지 못한 항목: 탈퇴·퇴직 계정 삭제 기능, 관리자 2단계 인증, 로그인 실패 제한(캡차·잠금), 오래 쓰지 않으면 자동 로그아웃, 접속·권한 변경 기록 보관, 요청 횟수 제한",
+      "evidence": {}
+    }
+  ],
+  "bonus": [],
+  "raw": {
+    "url": "https://bibletravel.vercel.app",
+    "finalUrl": "https://bibletravel.vercel.app",
+    "httpStatus": 0,
+    "publicSurface": {
+      "httpStatus": 0,
+      "finalUrl": "https://bibletravel.vercel.app",
+      "transportChecked": false,
+      "bodyChecked": false,
+      "unsafeTransport": false
+    },
+    "scannedAt": "2026-11-17T22:19:43.517Z"
+  },
+  "trackResults": {
+    "security": {
+      "eligible": false,
+      "outcome": "blocked",
+      "items": [
+        {
+          "id": "meta.public-surface",
+          "status": "unknown",
+          "observed": "공개 화면을 확인하지 못했습니다.",
+          "evidence": {
+            "httpStatus": 0,
+            "finalUrl": "https://bibletravel.vercel.app",
+            "transportChecked": false,
+            "bodyChecked": false,
+            "unsafeTransport": false
+          }
+        },
+        {
+          "id": "sec.transport.ssl-valid",
+          "status": "fail",
+          "observed": "공개 HTTPS 연결에서 인증서 오류를 확인했습니다.",
+          "evidence": {
+            "tlsInvalid": true,
+            "errorCode": "SELF_SIGNED_CERT_IN_CHAIN"
+          }
+        },
+        {
+          "id": "meta.public-surface",
+          "status": "unknown",
+          "observed": "공개 응답 검사를 완료하지 못했습니다.",
+          "evidence": {
+            "error": "fetch failed"
+          }
+        },
+        {
+          "id": "code.hardcoded-secret",
+          "status": "pass",
+          "observed": "하드코딩 시크릿 미검출",
+          "evidence": {
+            "hits": [],
+            "inspectedFiles": 2,
+            "readFailures": 0
+          }
+        },
+        {
+          "id": "code.client-secret-leak",
+          "status": "pass",
+          "observed": "클라 시크릿 노출 미검출",
+          "evidence": {
+            "hits": [],
+            "inspectedFiles": 1,
+            "readFailures": 0
+          }
+        },
+        {
+          "id": "code.headers-config",
+          "status": "info",
+          "observed": "헤더 설정 파일에서 보안 헤더 설정을 못 찾음(라이브 관측을 우선 신뢰)",
+          "evidence": {
+            "configuredHeaders": {},
+            "filesScanned": []
+          }
+        },
+        {
+          "id": "code.dangerous-pattern",
+          "status": "info",
+          "observed": "검토가 필요한 위험 패턴 41건(문맥 확인 필요)",
+          "evidence": {
+            "hits": [
+              {
+                "file": "app.js",
+                "line": 1629,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 1677,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2141,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2144,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2150,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2222,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2232,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2246,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2325,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2331,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2335,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2339,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2365,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2604,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2853,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2870,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2880,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2884,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2943,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 2956,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3033,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3252,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3253,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3260,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3261,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3268,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3279,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3281,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3293,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3316,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3320,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3324,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3339,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3392,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3396,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3400,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3414,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3442,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3722,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3730,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3734,
+                "kind": "innerHTML 대입"
+              }
+            ]
+          }
+        },
+        {
+          "id": "code.plain-sensitive-column",
+          "status": "na",
+          "observed": "Supabase 를 쓰지 않아 생략",
+          "evidence": {
+            "notApplicable": true
+          }
+        },
+        {
+          "id": "code.rls.anon-write",
+          "status": "na",
+          "observed": "Supabase 를 쓰지 않아 생략",
+          "evidence": {
+            "notApplicable": true
+          }
+        },
+        {
+          "id": "auth.password-policy",
+          "status": "na",
+          "observed": "Supabase 를 쓰지 않아 생략",
+          "evidence": {
+            "notApplicable": true
+          }
+        },
+        {
+          "id": "storage.upload-limits",
+          "status": "na",
+          "observed": "Supabase 를 쓰지 않아 생략",
+          "evidence": {
+            "notApplicable": true
+          }
+        },
+        {
+          "id": "ops.school-selfcheck",
+          "status": "info",
+          "observed": "코드에서 흔적을 찾지 못한 항목: 탈퇴·퇴직 계정 삭제 기능, 관리자 2단계 인증, 로그인 실패 제한(캡차·잠금), 오래 쓰지 않으면 자동 로그아웃, 접속·권한 변경 기록 보관, 요청 횟수 제한",
+          "evidence": {}
+        }
+      ],
+      "blockingFails": [
+        {
+          "id": "sec.transport.ssl-valid",
+          "status": "fail",
+          "observed": "공개 HTTPS 연결에서 인증서 오류를 확인했습니다.",
+          "evidence": {
+            "tlsInvalid": true,
+            "errorCode": "SELF_SIGNED_CERT_IN_CHAIN"
+          },
+          "severity": "critical",
+          "title": "SSL 인증서 유효"
+        }
+      ],
+      "coverage": {
+        "checked": 6,
+        "unverified": 2,
+        "notApplicable": 4
+      },
+      "policyVersion": "minimum-2026-09-15",
+      "score": null,
+      "grade": null,
+      "failingBySeverity": {
+        "critical": 1,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      }
+    }
+  }
+}
