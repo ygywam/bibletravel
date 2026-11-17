@@ -423,21 +423,416 @@
       }
 
       if (funcName === "listGratitudeEntries") {
-        const { data: posts } = await sb.from('travel_gratitude').select('*').order('id', { ascending: false }).limit(50);
-        return { success: true, posts: posts || [] };
+        const sessionToken = args[0];
+        const myStudentId = sessionToken && String(sessionToken).includes('_') ? String(sessionToken).split('_')[2] : (state.student ? String(state.student.studentId) : null);
+
+        // 감사글 최신 100개 로드
+        const { data: posts, error: pErr } = await sb.from('travel_gratitude').select('*').order('id', { ascending: false }).limit(100);
+        if (pErr) return { success: false, error: pErr.message, entries: [] };
+
+        // 좋아요 데이터 로드
+        const { data: likes } = await sb.from('travel_gratitude_likes').select('*');
+        const likesCountMap = {};
+        const myLikedMap = {};
+        let todayMyLikesCount = 0;
+        const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+
+        (likes || []).forEach(l => {
+          const gId = String(l.gratitude_id);
+          likesCountMap[gId] = (likesCountMap[gId] || 0) + 1;
+          if (myStudentId && String(l.student_id).trim() === String(myStudentId).trim()) {
+            myLikedMap[gId] = true;
+            const lDate = new Date(l.created_at).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+            if (lDate === todayStr) {
+              todayMyLikesCount++;
+            }
+          }
+        });
+
+        const entries = (posts || []).map(p => {
+          const pId = String(p.id);
+          const d = new Date(p.created_at);
+          const kstStr = d.toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }).slice(0, 16);
+
+          return {
+            id: p.id,
+            studentId: p.student_id,
+            studentName: p.student_name,
+            body: p.body,
+            createdAt: kstStr,
+            likeCount: likesCountMap[pId] || 0,
+            isLikedByMe: !!myLikedMap[pId]
+          };
+        });
+
+        return {
+          success: true,
+          entries: entries,
+          todayMyLikesCount: todayMyLikesCount
+        };
       }
 
       if (funcName === "saveGratitudeEntry") {
         const sessionToken = args[0];
         const bodyText = args[1];
+        if (!sessionToken) return { success: false, error: "로그인이 필요합니다." };
+        if (!bodyText || !bodyText.trim()) return { success: false, error: "감사 내용을 입력하세요." };
         const studentId = String(sessionToken).split('_')[2];
-        const { data: s } = await sb.from('travel_students').select('name').eq('student_id', studentId).single();
+        const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+
+        // 오늘 이미 감사 작성했는지 확인
+        const { data: todayGrat } = await sb.from('travel_gratitude').select('id,created_at').eq('student_id', studentId);
+        const alreadyWritten = (todayGrat || []).some(g => {
+          return new Date(g.created_at).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }) === todayStr;
+        });
+        if (alreadyWritten) {
+          return { success: false, error: "오늘의 감사제목은 이미 작성하셨습니다! 내일 또 작성해 주세요." };
+        }
+
+        const { data: s } = await sb.from('travel_students').select('*').eq('student_id', studentId).single();
+        if (!s) return { success: false, error: "학생 정보를 찾을 수 없습니다." };
+
         await sb.from('travel_gratitude').insert({
           student_id: studentId,
-          student_name: s ? s.name : '학생',
-          body: bodyText
+          student_name: s.name,
+          body: bodyText.trim()
         });
+
+        // 💮 도장 +1 지급 및 코인 장부 기록
+        const newStamp = (s.stamp_balance || 0) + 1;
+        await sb.from('travel_students').update({ stamp_balance: newStamp }).eq('student_id', studentId);
+        await sb.from('travel_coin_ledger').insert({
+          student_id: studentId,
+          type: 'STAMP',
+          change_stamps: 1,
+          reason: '오늘의감사작성'
+        });
+
+        return { success: true, stampBalance: newStamp, gemBalance: s.gem_balance };
+      }
+
+      if (funcName === "likeGratitudeEntry") {
+        const sessionToken = args[0];
+        const gratId = args[1];
+        if (!sessionToken) return { success: false, error: "로그인이 필요합니다." };
+        const fromStudentId = String(sessionToken).split('_')[2];
+        const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+
+        // 1. 대상 감사글 조회
+        const { data: targetGrat, error: tgErr } = await sb.from('travel_gratitude').select('*').eq('id', Number(gratId)).single();
+        if (tgErr || !targetGrat) return { success: false, error: "해당 감사글을 찾을 수 없습니다." };
+
+        if (String(targetGrat.student_id).trim() === String(fromStudentId).trim()) {
+          return { success: false, error: "본인이 작성한 글에는 좋아요를 누를 수 없습니다." };
+        }
+
+        // 2. 이미 좋아요를 눌렀는지 확인
+        const { data: existingLike } = await sb.from('travel_gratitude_likes').select('id').match({ gratitude_id: Number(gratId), student_id: fromStudentId }).maybeSingle();
+        if (existingLike) {
+          return { success: false, error: "이미 응원(좋아요)을 누른 감사글입니다." };
+        }
+
+        // 3. 오늘 좋아요 3회 제한 확인
+        const { data: myLikes } = await sb.from('travel_gratitude_likes').select('created_at').eq('student_id', fromStudentId);
+        const todayCount = (myLikes || []).filter(l => new Date(l.created_at).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }) === todayStr).length;
+        if (todayCount >= 3) {
+          return { success: false, error: "좋아요는 하루 최대 3번까지만 누를 수 있습니다!" };
+        }
+
+        // 4. 좋아요 레코드 추가
+        await sb.from('travel_gratitude_likes').insert({
+          gratitude_id: Number(gratId),
+          student_id: fromStudentId
+        });
+
+        // 5. 보상 지급 (보낸 학생 도장 +1, 작성자 학생 도장 +1)
+        const { data: fromStudent } = await sb.from('travel_students').select('*').eq('student_id', fromStudentId).single();
+        const fromNewStamp = (fromStudent ? fromStudent.stamp_balance : 0) + 1;
+        await sb.from('travel_students').update({ stamp_balance: fromNewStamp }).eq('student_id', fromStudentId);
+        await sb.from('travel_coin_ledger').insert({
+          student_id: fromStudentId,
+          type: 'STAMP',
+          change_stamps: 1,
+          reason: `감사좋아요격려 (${targetGrat.student_name} 님 글)`
+        });
+
+        const { data: toStudent } = await sb.from('travel_students').select('*').eq('student_id', targetGrat.student_id).single();
+        if (toStudent) {
+          const toNewStamp = (toStudent.stamp_balance || 0) + 1;
+          await sb.from('travel_students').update({ stamp_balance: toNewStamp }).eq('student_id', targetGrat.student_id);
+          await sb.from('travel_coin_ledger').insert({
+            student_id: targetGrat.student_id,
+            type: 'STAMP',
+            change_stamps: 1,
+            reason: '감사좋아요선물수령'
+          });
+        }
+
+        return {
+          success: true,
+          stampBalance: fromNewStamp,
+          gemBalance: fromStudent ? fromStudent.gem_balance : 0,
+          todayLikesRemaining: 3 - (todayCount + 1)
+        };
+      }
+
+      if (funcName === "updateGratitudeEntry") {
+        const sessionToken = args[0];
+        const gratId = args[1];
+        const newBody = args[2];
+        if (!sessionToken) return { success: false, error: "로그인이 필요합니다." };
+        const studentId = String(sessionToken).split('_')[2];
+
+        const { data: targetGrat } = await sb.from('travel_gratitude').select('*').eq('id', Number(gratId)).single();
+        if (!targetGrat) return { success: false, error: "해당 감사글을 찾을 수 없습니다." };
+        if (String(targetGrat.student_id).trim() !== String(studentId).trim()) {
+          return { success: false, error: "본인이 작성한 글만 수정할 수 있습니다." };
+        }
+
+        await sb.from('travel_gratitude').update({ body: String(newBody).trim() }).eq('id', Number(gratId));
         return { success: true };
+      }
+
+      if (funcName === "deleteGratitudeEntry") {
+        const sessionToken = args[0];
+        const gratId = args[1];
+        if (!sessionToken) return { success: false, error: "로그인이 필요합니다." };
+        const studentId = String(sessionToken).split('_')[2];
+
+        const { data: targetGrat } = await sb.from('travel_gratitude').select('*').eq('id', Number(gratId)).single();
+        if (!targetGrat) return { success: false, error: "해당 감사글을 찾을 수 없습니다." };
+        if (String(targetGrat.student_id).trim() !== String(studentId).trim()) {
+          return { success: false, error: "본인이 작성한 글만 삭제할 수 있습니다." };
+        }
+
+        await sb.from('travel_gratitude_likes').delete().eq('gratitude_id', Number(gratId));
+        await sb.from('travel_gratitude').delete().eq('id', Number(gratId));
+        return { success: true };
+      }
+
+      if (funcName === "getStudentCoinHistory") {
+        const sessionToken = args[0];
+        const type = String(args[1] || 'STAMP').toUpperCase();
+        if (!sessionToken) return { success: false, error: "로그인이 필요합니다." };
+        const studentId = String(sessionToken).split('_')[2];
+
+        const { data: logs } = await sb.from('travel_coin_ledger')
+          .select('*')
+          .eq('student_id', studentId)
+          .eq('type', type)
+          .order('id', { ascending: false })
+          .limit(100);
+
+        const { data: student } = await sb.from('travel_students').select('*').eq('student_id', studentId).single();
+
+        let totalEarned = 0;
+        let totalSpent = 0;
+
+        const list = (logs || []).map(r => {
+          const amt = type === 'STAMP' ? Number(r.change_stamps || 0) : Number(r.change_gems || 0);
+          if (amt > 0) totalEarned += amt;
+          else totalSpent += Math.abs(amt);
+
+          const d = new Date(r.created_at);
+          const dateStr = d.toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }).slice(0, 16);
+
+          return {
+            amount: amt,
+            reason: r.reason || '',
+            createdAt: dateStr
+          };
+        });
+
+        const currentBal = student ? (type === 'STAMP' ? student.stamp_balance : student.gem_balance) : 0;
+
+        return {
+          success: true,
+          type: type,
+          list: list,
+          summary: {
+            totalEarned: totalEarned,
+            totalSpent: totalSpent,
+            currentBalance: currentBal || 0
+          }
+        };
+      }
+
+      if (funcName === "registerStudent") {
+        const name = args[0];
+        const dept = args[1] || "초등부";
+        if (!name || !name.trim()) return { success: false, error: "이름을 입력하세요." };
+
+        const { data: allStudents } = await sb.from('travel_students').select('student_id,pin');
+
+        let maxNum = 0;
+        const pins = [];
+        (allStudents || []).forEach(s => {
+          if (s.pin) pins.push(String(s.pin).trim());
+          if (s.student_id && s.student_id.startsWith('S')) {
+            const num = parseInt(s.student_id.replace(/\D/g, ''), 10);
+            if (!isNaN(num) && num > maxNum) maxNum = num;
+          }
+        });
+
+        const nextNum = maxNum + 1;
+        const nextId = "S" + String(nextNum).padStart(3, '0');
+
+        let pin = "";
+        do {
+          pin = String(Math.floor(1000 + Math.random() * 9000));
+        } while (pins.includes(pin));
+
+        const emojis = ["🦁", "⛵", "👑", "🚀", "🦄", "🐬", "🐼", "🎨", "⚽", "🎸"];
+        const colors = ["#ff66af", "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ec4899"];
+        const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+        const color = colors[Math.floor(Math.random() * colors.length)];
+
+        const { error: insErr } = await sb.from('travel_students').insert({
+          student_id: nextId,
+          name: name.trim(),
+          department: dept,
+          display_emoji: emoji,
+          card_color: color,
+          pin: pin,
+          current_day_index: 1,
+          stamp_balance: 0,
+          gem_balance: 0,
+          total_used_stamps: 0,
+          streak_on_time: 0,
+          is_active: true
+        });
+
+        if (insErr) return { success: false, error: insErr.message };
+        return { success: true, studentId: nextId, name: name.trim(), pin: pin };
+      }
+
+      if (funcName === "listMarketProducts") {
+        const { data } = await sb.from('travel_settings').select('value').eq('key', 'MARKET_PRODUCTS').single();
+        let products = [];
+        if (data && data.value) {
+          try { products = JSON.parse(data.value); } catch(e) {}
+        }
+        if (!products || products.length === 0) {
+          products = [
+            { id: "MKT_01", name: "달콤 간식 세트 🍭", gemPrice: 2, imageUrl: "", description: "성경학교 특별 간식 꾸러미", isAvailable: true, createdAt: "2026-11-17" },
+            { id: "MKT_02", name: "캐릭터 문구 세트 ✏️", gemPrice: 3, imageUrl: "", description: "귀여운 주일학교 필기구 세트", isAvailable: true, createdAt: "2026-11-17" },
+            { id: "MKT_03", name: "문화상품권 (5천원권) 🎟️", gemPrice: 5, imageUrl: "", description: "원하는 책이나 물품을 살 수 있는 상품권", isAvailable: true, createdAt: "2026-11-17" }
+          ];
+          await sb.from('travel_settings').upsert({ key: 'MARKET_PRODUCTS', value: JSON.stringify(products) });
+        }
+        return { success: true, products: products };
+      }
+
+      if (funcName === "saveMarketProduct") {
+        const teacherToken = args[0];
+        const product = args[1];
+        if (!teacherToken && !state.isTeacher) return { success: false, error: "관리자 권한이 필요합니다." };
+        if (!product || !product.name) return { success: false, error: "상품 정보를 확인해 주세요." };
+
+        const { data } = await sb.from('travel_settings').select('value').eq('key', 'MARKET_PRODUCTS').single();
+        let products = [];
+        if (data && data.value) {
+          try { products = JSON.parse(data.value); } catch(e) {}
+        }
+
+        const pId = product.id || ("MKT_" + Date.now());
+        const pIndex = products.findIndex(p => p.id === pId);
+        const savedItem = {
+          id: pId,
+          name: String(product.name).trim(),
+          gemPrice: Math.max(1, Number(product.gemPrice) || 1),
+          imageUrl: String(product.imageUrl || "").trim(),
+          description: String(product.description || "").trim(),
+          isAvailable: product.isAvailable !== false,
+          createdAt: product.createdAt || new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
+        };
+
+        if (pIndex !== -1) {
+          products[pIndex] = savedItem;
+        } else {
+          products.push(savedItem);
+        }
+
+        await sb.from('travel_settings').upsert({ key: 'MARKET_PRODUCTS', value: JSON.stringify(products) });
+        return { success: true, product: savedItem };
+      }
+
+      if (funcName === "deleteMarketProduct") {
+        const teacherToken = args[0];
+        const productId = args[1];
+        if (!teacherToken && !state.isTeacher) return { success: false, error: "관리자 권한이 필요합니다." };
+
+        const { data } = await sb.from('travel_settings').select('value').eq('key', 'MARKET_PRODUCTS').single();
+        let products = [];
+        if (data && data.value) {
+          try { products = JSON.parse(data.value); } catch(e) {}
+        }
+
+        products = products.filter(p => p.id !== productId);
+        await sb.from('travel_settings').upsert({ key: 'MARKET_PRODUCTS', value: JSON.stringify(products) });
+        return { success: true };
+      }
+
+      if (funcName === "exchangeMarketProduct") {
+        const sessionToken = args[0];
+        const productId = args[1];
+        if (!sessionToken) return { success: false, error: "로그인이 필요합니다." };
+        const studentId = String(sessionToken).split('_')[2];
+
+        // 상품 조회
+        const { data: mData } = await sb.from('travel_settings').select('value').eq('key', 'MARKET_PRODUCTS').single();
+        let products = [];
+        if (mData && mData.value) {
+          try { products = JSON.parse(mData.value); } catch(e) {}
+        }
+        const product = products.find(p => p.id === productId);
+        if (!product) return { success: false, error: "해당 상품을 찾을 수 없습니다." };
+        if (!product.isAvailable) return { success: false, error: "현재 교환할 수 없는 상품입니다." };
+
+        // 학생 잔고 조회
+        const { data: s } = await sb.from('travel_students').select('*').eq('student_id', studentId).single();
+        if (!s) return { success: false, error: "학생 정보를 찾을 수 없습니다." };
+        if ((s.gem_balance || 0) < product.gemPrice) {
+          return { success: false, error: `보석이 부족합니다. (필요: ${product.gemPrice}개 / 보유: ${s.gem_balance || 0}개)` };
+        }
+
+        // 보석 차감 및 코인장부 기록
+        const newGems = s.gem_balance - product.gemPrice;
+        await sb.from('travel_students').update({ gem_balance: newGems }).eq('student_id', studentId);
+        await sb.from('travel_coin_ledger').insert({
+          student_id: studentId,
+          type: 'GEM',
+          change_gems: -product.gemPrice,
+          reason: `달란트마켓교환: ${product.name}`
+        });
+
+        // 주문 기록 저장 (travel_settings의 MARKET_ORDERS)
+        try {
+          const { data: oData } = await sb.from('travel_settings').select('value').eq('key', 'MARKET_ORDERS').single();
+          let orders = [];
+          if (oData && oData.value) {
+            try { orders = JSON.parse(oData.value); } catch(e) {}
+          }
+          orders.push({
+            orderId: "ORD_" + Date.now(),
+            studentId: studentId,
+            studentName: s.name,
+            productId: product.id,
+            productName: product.name,
+            gemPrice: product.gemPrice,
+            status: "APPLIED",
+            createdAt: new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
+          });
+          await sb.from('travel_settings').upsert({ key: 'MARKET_ORDERS', value: JSON.stringify(orders) });
+        } catch(e) {}
+
+        return {
+          success: true,
+          productName: product.name,
+          gemPrice: product.gemPrice,
+          gemBalance: newGems,
+          stampBalance: s.stamp_balance
+        };
       }
 
       if (funcName === "grantPraiseStamps") {
@@ -2609,14 +3004,14 @@
     if (!state.sessionToken) return showToast("학생 로그인이 필요합니다.");
 
     var bodyText = input.value.trim();
-    showToast("🙏 감사제목을 시트에 저장하는 중...");
+    showToast("🙏 감사제목을 저장하는 중...");
 
     apiCall("saveGratitudeEntry", state.sessionToken, bodyText).then(function(res) {
       if (!res || !res.success) {
         return showToast(res ? res.error : "감사 저장 중 오류가 발생했습니다.");
       }
 
-      showToast("🙏 감사 나눔이 시트에 저장되었습니다! (💮 도장 +1개 수령!)");
+      showToast("🙏 감사 나눔이 등록되었습니다! (💮 도장 +1개 수령!)");
       input.value = "";
 
       if (state.student) {
