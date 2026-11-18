@@ -1,40 +1,15 @@
 {
-  "at": "2026-11-17T22:19:44.472Z",
-  "url": "https://bibletravel.vercel.app",
+  "at": "2026-11-18T13:47:11.160Z",
+  "url": "",
   "reachable": false,
   "results": [
-    {
-      "id": "meta.public-surface",
-      "status": "unknown",
-      "observed": "공개 응답 검사를 완료하지 못했습니다.",
-      "evidence": {
-        "error": "fetch failed"
-      }
-    },
-    {
-      "id": "sec.transport.ssl-valid",
-      "status": "fail",
-      "observed": "공개 HTTPS 연결에서 인증서 오류를 확인했습니다.",
-      "evidence": {
-        "tlsInvalid": true,
-        "errorCode": "SELF_SIGNED_CERT_IN_CHAIN"
-      }
-    },
-    {
-      "id": "meta.public-surface",
-      "status": "unknown",
-      "observed": "공개 응답 검사를 완료하지 못했습니다.",
-      "evidence": {
-        "error": "fetch failed"
-      }
-    },
     {
       "id": "code.hardcoded-secret",
       "status": "pass",
       "observed": "하드코딩 시크릿 미검출",
       "evidence": {
         "hits": [],
-        "inspectedFiles": 2,
+        "inspectedFiles": 3,
         "readFailures": 0
       }
     },
@@ -51,10 +26,28 @@
     {
       "id": "code.headers-config",
       "status": "info",
-      "observed": "헤더 설정 파일에서 보안 헤더 설정을 못 찾음(라이브 관측을 우선 신뢰)",
+      "observed": "헤더 설정 발견: content-security-policy, x-frame-options, x-content-type-options, referrer-policy, permissions-policy",
       "evidence": {
-        "configuredHeaders": {},
-        "filesScanned": []
+        "configuredHeaders": {
+          "content-security-policy": [
+            "vercel.json"
+          ],
+          "x-frame-options": [
+            "vercel.json"
+          ],
+          "x-content-type-options": [
+            "vercel.json"
+          ],
+          "referrer-policy": [
+            "vercel.json"
+          ],
+          "permissions-policy": [
+            "vercel.json"
+          ]
+        },
+        "filesScanned": [
+          "vercel.json"
+        ]
       }
     },
     {
@@ -65,27 +58,12 @@
         "hits": [
           {
             "file": "app.js",
-            "line": 1629,
+            "line": 1710,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 1677,
-            "kind": "innerHTML 대입"
-          },
-          {
-            "file": "app.js",
-            "line": 2141,
-            "kind": "innerHTML 대입"
-          },
-          {
-            "file": "app.js",
-            "line": 2144,
-            "kind": "innerHTML 대입"
-          },
-          {
-            "file": "app.js",
-            "line": 2150,
+            "line": 1758,
             "kind": "innerHTML 대입"
           },
           {
@@ -95,177 +73,192 @@
           },
           {
             "file": "app.js",
-            "line": 2232,
+            "line": 2225,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 2246,
+            "line": 2231,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 2325,
+            "line": 2303,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 2331,
+            "line": 2313,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 2335,
+            "line": 2327,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 2339,
+            "line": 2406,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 2365,
+            "line": 2412,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 2604,
+            "line": 2416,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 2853,
+            "line": 2420,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 2870,
+            "line": 2446,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 2880,
+            "line": 2685,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 2884,
+            "line": 2934,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 2943,
+            "line": 2951,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 2956,
+            "line": 2961,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3033,
+            "line": 2965,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3252,
+            "line": 3024,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3253,
+            "line": 3037,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3260,
+            "line": 3114,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3261,
+            "line": 3333,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3268,
+            "line": 3334,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3279,
+            "line": 3341,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3281,
+            "line": 3342,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3293,
+            "line": 3349,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3316,
+            "line": 3360,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3320,
+            "line": 3362,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3324,
+            "line": 3374,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3339,
+            "line": 3397,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3392,
+            "line": 3401,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3396,
+            "line": 3405,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3400,
+            "line": 3420,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3414,
+            "line": 3473,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3442,
+            "line": 3477,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3722,
+            "line": 3481,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3730,
+            "line": 3495,
             "kind": "innerHTML 대입"
           },
           {
             "file": "app.js",
-            "line": 3734,
+            "line": 3523,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3803,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3811,
+            "kind": "innerHTML 대입"
+          },
+          {
+            "file": "app.js",
+            "line": 3815,
             "kind": "innerHTML 대입"
           }
         ]
@@ -311,60 +304,19 @@
     }
   ],
   "bonus": [],
-  "raw": {
-    "url": "https://bibletravel.vercel.app",
-    "finalUrl": "https://bibletravel.vercel.app",
-    "httpStatus": 0,
-    "publicSurface": {
-      "httpStatus": 0,
-      "finalUrl": "https://bibletravel.vercel.app",
-      "transportChecked": false,
-      "bodyChecked": false,
-      "unsafeTransport": false
-    },
-    "scannedAt": "2026-11-17T22:19:43.517Z"
-  },
+  "raw": {},
   "trackResults": {
     "security": {
       "eligible": false,
-      "outcome": "blocked",
+      "outcome": "unavailable",
       "items": [
-        {
-          "id": "meta.public-surface",
-          "status": "unknown",
-          "observed": "공개 화면을 확인하지 못했습니다.",
-          "evidence": {
-            "httpStatus": 0,
-            "finalUrl": "https://bibletravel.vercel.app",
-            "transportChecked": false,
-            "bodyChecked": false,
-            "unsafeTransport": false
-          }
-        },
-        {
-          "id": "sec.transport.ssl-valid",
-          "status": "fail",
-          "observed": "공개 HTTPS 연결에서 인증서 오류를 확인했습니다.",
-          "evidence": {
-            "tlsInvalid": true,
-            "errorCode": "SELF_SIGNED_CERT_IN_CHAIN"
-          }
-        },
-        {
-          "id": "meta.public-surface",
-          "status": "unknown",
-          "observed": "공개 응답 검사를 완료하지 못했습니다.",
-          "evidence": {
-            "error": "fetch failed"
-          }
-        },
         {
           "id": "code.hardcoded-secret",
           "status": "pass",
           "observed": "하드코딩 시크릿 미검출",
           "evidence": {
             "hits": [],
-            "inspectedFiles": 2,
+            "inspectedFiles": 3,
             "readFailures": 0
           }
         },
@@ -381,10 +333,28 @@
         {
           "id": "code.headers-config",
           "status": "info",
-          "observed": "헤더 설정 파일에서 보안 헤더 설정을 못 찾음(라이브 관측을 우선 신뢰)",
+          "observed": "헤더 설정 발견: content-security-policy, x-frame-options, x-content-type-options, referrer-policy, permissions-policy",
           "evidence": {
-            "configuredHeaders": {},
-            "filesScanned": []
+            "configuredHeaders": {
+              "content-security-policy": [
+                "vercel.json"
+              ],
+              "x-frame-options": [
+                "vercel.json"
+              ],
+              "x-content-type-options": [
+                "vercel.json"
+              ],
+              "referrer-policy": [
+                "vercel.json"
+              ],
+              "permissions-policy": [
+                "vercel.json"
+              ]
+            },
+            "filesScanned": [
+              "vercel.json"
+            ]
           }
         },
         {
@@ -395,27 +365,12 @@
             "hits": [
               {
                 "file": "app.js",
-                "line": 1629,
+                "line": 1710,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 1677,
-                "kind": "innerHTML 대입"
-              },
-              {
-                "file": "app.js",
-                "line": 2141,
-                "kind": "innerHTML 대입"
-              },
-              {
-                "file": "app.js",
-                "line": 2144,
-                "kind": "innerHTML 대입"
-              },
-              {
-                "file": "app.js",
-                "line": 2150,
+                "line": 1758,
                 "kind": "innerHTML 대입"
               },
               {
@@ -425,177 +380,192 @@
               },
               {
                 "file": "app.js",
-                "line": 2232,
+                "line": 2225,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 2246,
+                "line": 2231,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 2325,
+                "line": 2303,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 2331,
+                "line": 2313,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 2335,
+                "line": 2327,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 2339,
+                "line": 2406,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 2365,
+                "line": 2412,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 2604,
+                "line": 2416,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 2853,
+                "line": 2420,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 2870,
+                "line": 2446,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 2880,
+                "line": 2685,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 2884,
+                "line": 2934,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 2943,
+                "line": 2951,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 2956,
+                "line": 2961,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3033,
+                "line": 2965,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3252,
+                "line": 3024,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3253,
+                "line": 3037,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3260,
+                "line": 3114,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3261,
+                "line": 3333,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3268,
+                "line": 3334,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3279,
+                "line": 3341,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3281,
+                "line": 3342,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3293,
+                "line": 3349,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3316,
+                "line": 3360,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3320,
+                "line": 3362,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3324,
+                "line": 3374,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3339,
+                "line": 3397,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3392,
+                "line": 3401,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3396,
+                "line": 3405,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3400,
+                "line": 3420,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3414,
+                "line": 3473,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3442,
+                "line": 3477,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3722,
+                "line": 3481,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3730,
+                "line": 3495,
                 "kind": "innerHTML 대입"
               },
               {
                 "file": "app.js",
-                "line": 3734,
+                "line": 3523,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3803,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3811,
+                "kind": "innerHTML 대입"
+              },
+              {
+                "file": "app.js",
+                "line": 3815,
                 "kind": "innerHTML 대입"
               }
             ]
@@ -640,29 +610,17 @@
           "evidence": {}
         }
       ],
-      "blockingFails": [
-        {
-          "id": "sec.transport.ssl-valid",
-          "status": "fail",
-          "observed": "공개 HTTPS 연결에서 인증서 오류를 확인했습니다.",
-          "evidence": {
-            "tlsInvalid": true,
-            "errorCode": "SELF_SIGNED_CERT_IN_CHAIN"
-          },
-          "severity": "critical",
-          "title": "SSL 인증서 유효"
-        }
-      ],
+      "blockingFails": [],
       "coverage": {
-        "checked": 6,
-        "unverified": 2,
+        "checked": 5,
+        "unverified": 0,
         "notApplicable": 4
       },
       "policyVersion": "minimum-2026-09-15",
       "score": null,
       "grade": null,
       "failingBySeverity": {
-        "critical": 1,
+        "critical": 0,
         "high": 0,
         "medium": 0,
         "low": 0,

@@ -4,6 +4,17 @@
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNhb2d2ZHZxcm52cm95b21leGJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NTkxNzUsImV4cCI6MjEwMDMzNTE3NX0.WEL3qSgC6ZK29Kj54iKd3xXY2tPZo2G9GfRBTX5Gmbs";
   const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
+  // HTML 특수문자 이스케이프 유틸리티 (XSS 방어)
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
 
   // 애플리케이션 전역 상태 관리
   var state = {
@@ -135,7 +146,9 @@
       }
 
       if (funcName === "listStudentCards") {
-        const { data: students, error } = await sb.from('travel_students').select('*').eq('is_active', true);
+        const { data: students, error } = await sb.from('travel_students')
+          .select('student_id, name, department, display_emoji, card_color, current_day_index, stamp_balance, gem_balance, streak_on_time, is_active')
+          .eq('is_active', true);
         if (error) return { success: false, error: error.message };
 
         // 전체 읽기 로그 페이지네이션 일괄 로드 (약 0.08초 소요)
@@ -196,9 +209,29 @@
       if (funcName === "verifyStudentPin") {
         const studentId = args[0];
         const pin = args[1];
-        const { data, error } = await sb.from('travel_students').select('*').eq('student_id', studentId).single();
-        if (error || !data) return { success: false, error: "학생 정보를 찾을 수 없습니다." };
-        if (String(data.pin).trim() !== String(pin).trim()) return { success: false, error: "PIN 번호가 일치하지 않습니다." };
+        let verifiedStudent = null;
+
+        // 1) Supabase RPC 함수(verify_student_pin) 시도 (네트워크 PIN 노출 방어)
+        try {
+          const { data: rpcRes, error: rpcErr } = await sb.rpc('verify_student_pin', {
+            p_student_id: studentId,
+            p_pin: String(pin).trim()
+          });
+          if (!rpcErr && rpcRes) {
+            if (!rpcRes.success) {
+              return { success: false, error: rpcRes.error || "PIN 번호가 일치하지 않습니다." };
+            }
+            verifiedStudent = rpcRes;
+          }
+        } catch (e) {}
+
+        // 2) RPC 미설치 시 테이블 단건 직접 검증 폴백
+        if (!verifiedStudent) {
+          const { data, error } = await sb.from('travel_students').select('*').eq('student_id', studentId).single();
+          if (error || !data) return { success: false, error: "학생 정보를 찾을 수 없습니다." };
+          if (String(data.pin).trim() !== String(pin).trim()) return { success: false, error: "PIN 번호가 일치하지 않습니다." };
+          verifiedStudent = data;
+        }
 
         const { data: logs } = await sb.from('travel_reading_logs').select('book_name, chapter, read_date, is_on_time').eq('student_id', studentId);
         const metrics = calculateStudentMetrics(logs);
@@ -211,15 +244,15 @@
         }).eq('student_id', studentId).then(() => {});
 
         const safeStudent = {
-          studentId: data.student_id,
-          name: data.name,
-          department: data.department,
-          displayEmoji: data.display_emoji,
-          cardColor: data.card_color,
+          studentId: verifiedStudent.student_id || verifiedStudent.studentId,
+          name: verifiedStudent.name,
+          department: verifiedStudent.department,
+          displayEmoji: verifiedStudent.display_emoji || verifiedStudent.displayEmoji,
+          cardColor: verifiedStudent.card_color || verifiedStudent.cardColor,
           currentDayIndex: metrics.currentDayIndex,
-          stampBalance: data.stamp_balance,
-          gemBalance: data.gem_balance,
-          totalUsedStamps: data.total_used_stamps,
+          stampBalance: verifiedStudent.stamp_balance !== undefined ? verifiedStudent.stamp_balance : verifiedStudent.stampBalance,
+          gemBalance: verifiedStudent.gem_balance !== undefined ? verifiedStudent.gem_balance : verifiedStudent.gemBalance,
+          totalUsedStamps: verifiedStudent.total_used_stamps !== undefined ? verifiedStudent.total_used_stamps : verifiedStudent.totalUsedStamps,
           streakOnTime: metrics.streakOnTime,
           readLogs: cleanLogs
         };
@@ -228,7 +261,9 @@
 
       if (funcName === "fetchLatestStudentData") {
         const studentId = args[0];
-        const { data, error } = await sb.from('travel_students').select('*').eq('student_id', studentId).single();
+        const { data, error } = await sb.from('travel_students')
+          .select('student_id, name, department, display_emoji, card_color, stamp_balance, gem_balance, total_used_stamps, is_active')
+          .eq('student_id', studentId).single();
         if (error || !data) return { success: false, error: "데이터 조회 실패" };
         const { data: logs } = await sb.from('travel_reading_logs').select('book_name, chapter, read_date, is_on_time').eq('student_id', studentId);
         const metrics = calculateStudentMetrics(logs);
@@ -296,7 +331,9 @@
           streak_on_time: metrics.streakOnTime
         }).eq('student_id', studentId);
 
-        const { data: latestStudent } = await sb.from('travel_students').select('*').eq('student_id', studentId).single();
+        const { data: latestStudent } = await sb.from('travel_students')
+          .select('stamp_balance, gem_balance, total_used_stamps')
+          .eq('student_id', studentId).single();
 
         return {
           success: true,
@@ -313,7 +350,9 @@
         const sessionToken = args[0];
         const units = parseInt(args[1], 10) || 1;
         const studentId = String(sessionToken).split('_')[2];
-        const { data: s } = await sb.from('travel_students').select('*').eq('student_id', studentId).single();
+        const { data: s } = await sb.from('travel_students')
+          .select('stamp_balance, gem_balance, total_used_stamps')
+          .eq('student_id', studentId).single();
         const costStamps = units * 10;
         if (s.stamp_balance < costStamps) return { success: false, error: "도장이 부족합니다." };
 
@@ -414,6 +453,21 @@
 
       if (funcName === "verifyTeacherPin") {
         const pin = args[0];
+        // 1) 안전한 Supabase RPC 우선 시도 (네트워크 평문 비교 방어)
+        try {
+          const { data: rpcRes, error: rpcErr } = await sb.rpc('verify_teacher_pin', {
+            p_pin: String(pin).trim()
+          });
+          if (!rpcErr && rpcRes) {
+            if (rpcRes.success) {
+              const tToken = `TEACHER_TOKEN_${Date.now()}`;
+              return { success: true, token: tToken, teacherToken: tToken, isTeacher: true, isMasterAdmin: true };
+            }
+            return { success: false, error: rpcRes.error || "관리자 PIN이 일치하지 않습니다." };
+          }
+        } catch (e) {}
+
+        // 2) RPC 미설치 시 테이블 조회 폴백
         const { data } = await sb.from('travel_settings').select('value').eq('key', 'TEACHER_PIN').single();
         const teacherPin = data ? data.value.trim() : "7777";
         if (String(pin).trim() === teacherPin) {
@@ -498,7 +552,9 @@
           return { success: false, error: "오늘의 감사제목은 이미 작성하셨습니다! 내일 또 작성해 주세요." };
         }
 
-        const { data: s } = await sb.from('travel_students').select('*').eq('student_id', studentId).single();
+        const { data: s } = await sb.from('travel_students')
+          .select('name, stamp_balance, gem_balance')
+          .eq('student_id', studentId).single();
         if (!s) return { success: false, error: "학생 정보를 찾을 수 없습니다." };
 
         await sb.from('travel_gratitude').insert({
@@ -555,7 +611,7 @@
         });
 
         // 5. 보상 지급 (보낸 학생 도장 +1, 작성자 학생 도장 +1)
-        const { data: fromStudent } = await sb.from('travel_students').select('*').eq('student_id', fromStudentId).single();
+        const { data: fromStudent } = await sb.from('travel_students').select('stamp_balance').eq('student_id', fromStudentId).single();
         const fromNewStamp = (fromStudent ? fromStudent.stamp_balance : 0) + 1;
         await sb.from('travel_students').update({ stamp_balance: fromNewStamp }).eq('student_id', fromStudentId);
         await sb.from('travel_coin_ledger').insert({
@@ -565,7 +621,7 @@
           reason: `감사좋아요격려 (${targetGrat.student_name} 님 글)`
         });
 
-        const { data: toStudent } = await sb.from('travel_students').select('*').eq('student_id', targetGrat.student_id).single();
+        const { data: toStudent } = await sb.from('travel_students').select('stamp_balance').eq('student_id', targetGrat.student_id).single();
         if (toStudent) {
           const toNewStamp = (toStudent.stamp_balance || 0) + 1;
           await sb.from('travel_students').update({ stamp_balance: toNewStamp }).eq('student_id', targetGrat.student_id);
@@ -632,7 +688,7 @@
           .order('id', { ascending: false })
           .limit(100);
 
-        const { data: student } = await sb.from('travel_students').select('*').eq('student_id', studentId).single();
+        const { data: student } = await sb.from('travel_students').select('stamp_balance, gem_balance').eq('student_id', studentId).single();
 
         let totalEarned = 0;
         let totalSpent = 0;
@@ -671,12 +727,10 @@
         const dept = args[1] || "초등부";
         if (!name || !name.trim()) return { success: false, error: "이름을 입력하세요." };
 
-        const { data: allStudents } = await sb.from('travel_students').select('student_id,pin');
+        const { data: allStudents } = await sb.from('travel_students').select('student_id');
 
         let maxNum = 0;
-        const pins = [];
         (allStudents || []).forEach(s => {
-          if (s.pin) pins.push(String(s.pin).trim());
           if (s.student_id && s.student_id.startsWith('S')) {
             const num = parseInt(s.student_id.replace(/\D/g, ''), 10);
             if (!isNaN(num) && num > maxNum) maxNum = num;
@@ -791,7 +845,9 @@
         if (!product.isAvailable) return { success: false, error: "현재 교환할 수 없는 상품입니다." };
 
         // 학생 잔고 조회
-        const { data: s } = await sb.from('travel_students').select('*').eq('student_id', studentId).single();
+        const { data: s } = await sb.from('travel_students')
+          .select('name, stamp_balance, gem_balance')
+          .eq('student_id', studentId).single();
         if (!s) return { success: false, error: "학생 정보를 찾을 수 없습니다." };
         if ((s.gem_balance || 0) < product.gemPrice) {
           return { success: false, error: `보석이 부족합니다. (필요: ${product.gemPrice}개 / 보유: ${s.gem_balance || 0}개)` };
@@ -860,12 +916,37 @@
         const oldPin = args[2];
         const newPin = args[3];
         if (isTeacher) {
+          // 1) Supabase RPC 우선 시도
+          try {
+            const { data: rpcRes, error: rpcErr } = await sb.rpc('change_teacher_pin', {
+              p_old_pin: String(oldPin).trim(),
+              p_new_pin: String(newPin).trim()
+            });
+            if (!rpcErr && rpcRes) {
+              if (rpcRes.success) return { success: true };
+              return { success: false, error: rpcRes.error || "기존 PIN이 일치하지 않습니다." };
+            }
+          } catch (e) {}
+
           const { data } = await sb.from('travel_settings').select('value').eq('key', 'TEACHER_PIN').single();
           if (data && data.value.trim() !== String(oldPin).trim()) return { success: false, error: "기존 PIN이 일치하지 않습니다." };
           await sb.from('travel_settings').upsert({ key: 'TEACHER_PIN', value: String(newPin).trim() });
           return { success: true };
         } else {
           const studentId = String(token).split('_')[2];
+          // 1) Supabase RPC 우선 시도
+          try {
+            const { data: rpcRes, error: rpcErr } = await sb.rpc('change_student_pin', {
+              p_student_id: studentId,
+              p_old_pin: String(oldPin).trim(),
+              p_new_pin: String(newPin).trim()
+            });
+            if (!rpcErr && rpcRes) {
+              if (rpcRes.success) return { success: true };
+              return { success: false, error: rpcRes.error || "기존 PIN이 일치하지 않습니다." };
+            }
+          } catch (e) {}
+
           const { data } = await sb.from('travel_students').select('pin').eq('student_id', studentId).single();
           if (data && String(data.pin).trim() !== String(oldPin).trim()) return { success: false, error: "기존 PIN이 일치하지 않습니다." };
           await sb.from('travel_students').update({ pin: String(newPin).trim() }).eq('student_id', studentId);
@@ -2193,8 +2274,8 @@
                        '<span style="font-size:20px; flex-shrink:0;">' + (s.displayEmoji || "⭐") + '</span>' +
                        '<div style="min-width:0; flex:1; display:flex; flex-direction:column; justify-content:center; gap:2px;">' +
                        '<div style="font-weight:800; font-size:' + nameFontSize + '; color:var(--foreground); display:flex; align-items:center; gap:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' +
-                       '<span>' + s.name + '</span>' +
-                       '<span style="font-size:11px; color:var(--muted); font-weight:normal; flex-shrink:0;">(' + s.department + ')</span>' +
+                       '<span>' + escapeHtml(s.name) + '</span>' +
+                       '<span style="font-size:11px; color:var(--muted); font-weight:normal; flex-shrink:0;">(' + escapeHtml(s.department) + ')</span>' +
                        (isSelf ? ' <span style="background:var(--primary); color:#ffffff; font-size:10px; padding:1px 5px; border-radius:6px; font-weight:800; flex-shrink:0;">나</span>' : "") +
                        '</div>' +
                        '<div style="font-size:11px; font-weight:700; color:var(--primary); white-space:nowrap; display:flex; align-items:center; gap:4px;">' +
@@ -2220,8 +2301,8 @@
             fPin.className = "friend-map-pin avatar-pin" + (isSelf ? " self-avatar" : "");
             fPin.style.cssText = "left:" + (fPos.x + offsetX) + "%; top:" + (fPos.y + offsetY) + "%; z-index:" + (isSelf ? "500" : (100 + stuIdx)) + ";";
             fPin.innerHTML = '<div class="avatar-bubble" style="background:' + (isSelf ? "linear-gradient(135deg, #fff0f7 0%, #ffffff 100%)" : "#ffffff") + '; border-color:' + (isSelf ? "var(--primary)" : "var(--secondary)") + '; ' + (isSelf ? "box-shadow: 0 0 10px rgba(255,102,175,0.6);" : "") + '">' +
-                             '<span style="color:' + (isSelf ? "var(--primary)" : "var(--foreground)") + '; font-weight:800;">' + s.name + (isSelf ? " (나)" : "") + '</span></div>' +
-                             '<div class="avatar-icon-box" style="background:' + (s.cardColor || "#3b82f6") + '; color:#fff; border-color:' + (isSelf ? "var(--primary)" : "#fff") + '; ' + (isSelf ? "box-shadow: 0 0 8px rgba(255,102,175,0.8);" : "") + '">' + (s.displayEmoji || "⭐") + '</div>';
+                             '<span style="color:' + (isSelf ? "var(--primary)" : "var(--foreground)") + '; font-weight:800;">' + escapeHtml(s.name) + (isSelf ? " (나)" : "") + '</span></div>' +
+                             '<div class="avatar-icon-box" style="background:' + (s.cardColor || "#3b82f6") + '; color:#fff; border-color:' + (isSelf ? "var(--primary)" : "#fff") + '; ' + (isSelf ? "box-shadow: 0 0 8px rgba(255,102,175,0.8);" : "") + '">' + escapeHtml(s.displayEmoji || "⭐") + '</div>';
             canvasBox.appendChild(fPin);
           }
 
@@ -2230,8 +2311,8 @@
             homePin.className = "friend-map-pin avatar-pin self-avatar";
             homePin.style.cssText = "left:" + fPos.x + "%; top:" + fPos.y + "%; z-index:500;";
             homePin.innerHTML = '<div class="avatar-bubble" style="background:linear-gradient(135deg, #fff0f7 0%, #ffffff 100%); border-color:var(--primary); box-shadow: 0 0 10px rgba(255,102,175,0.6);">' +
-                                '<span style="color:var(--primary); font-weight:800;">' + s.name + ' (나)</span></div>' +
-                                '<div class="avatar-icon-box" style="background:' + (s.cardColor || "#3b82f6") + '; color:#fff; border-color:var(--primary); box-shadow: 0 0 8px rgba(255,102,175,0.8);">' + (s.displayEmoji || "⭐") + '</div>';
+                                '<span style="color:var(--primary); font-weight:800;">' + escapeHtml(s.name) + ' (나)</span></div>' +
+                                '<div class="avatar-icon-box" style="background:' + (s.cardColor || "#3b82f6") + '; color:#fff; border-color:var(--primary); box-shadow: 0 0 8px rgba(255,102,175,0.8);">' + escapeHtml(s.displayEmoji || "⭐") + '</div>';
             homeCanvasBox.appendChild(homePin);
           }
 
@@ -2243,8 +2324,8 @@
             var raceItem = document.createElement("div");
             raceItem.className = "race-avatar-item";
             raceItem.style.cssText = "left:" + leftPct + "%; margin-top:" + trackOffsetY + "px; z-index:" + (isSelf ? "500" : (20 + stuIdx)) + ";";
-            raceItem.innerHTML = '<div class="race-avatar-name" style="border-color:' + (isSelf ? "var(--primary)" : "var(--border)") + '; font-weight:' + (isSelf ? "800" : "700") + ';">' + s.name + (isSelf ? " (나)" : "") + '</div>' +
-                                 '<div class="race-avatar-icon" style="background:' + (s.cardColor || "#ff66af") + '; color:#fff;">' + (s.displayEmoji || "⭐") + '</div>';
+            raceItem.innerHTML = '<div class="race-avatar-name" style="border-color:' + (isSelf ? "var(--primary)" : "var(--border)") + '; font-weight:' + (isSelf ? "800" : "700") + ';">' + escapeHtml(s.name) + (isSelf ? " (나)" : "") + '</div>' +
+                                 '<div class="race-avatar-icon" style="background:' + (s.cardColor || "#ff66af") + '; color:#fff;">' + escapeHtml(s.displayEmoji || "⭐") + '</div>';
             trackBox.appendChild(raceItem);
           }
         }
@@ -2362,9 +2443,9 @@
 
         var card = document.createElement("div");
         card.style.cssText = "padding:10px 4px; border-radius:14px; border:" + cardBorder + "; background:" + cardBg + "; cursor:pointer; text-align:center; transition:all 0.15s ease; box-shadow:0 2px 6px rgba(0,0,0,0.04); display:flex; flex-direction:column; align-items:center; justify-content:center;";
-        card.innerHTML = '<div style="font-size:24px; line-height:1; margin-bottom:4px;">' + (s.displayEmoji || "⭐") + '</div>' +
-                         '<div style="font-size:13px; font-weight:800; color:var(--foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:100%;">' + s.name + (isSelf ? " (나)" : "") + '</div>' +
-                         '<div style="font-size:10px; color:var(--muted); font-weight:700; margin-top:2px; background:#f8fafc; padding:1px 4px; border-radius:6px; border:1px solid var(--border);">' + (s.department || "초등부") + '</div>';
+        card.innerHTML = '<div style="font-size:24px; line-height:1; margin-bottom:4px;">' + escapeHtml(s.displayEmoji || "⭐") + '</div>' +
+                         '<div style="font-size:13px; font-weight:800; color:var(--foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:100%;">' + escapeHtml(s.name) + (isSelf ? " (나)" : "") + '</div>' +
+                         '<div style="font-size:10px; color:var(--muted); font-weight:700; margin-top:2px; background:#f8fafc; padding:1px 4px; border-radius:6px; border:1px solid var(--border);">' + escapeHtml(s.department || "초등부") + '</div>';
         
         card.onclick = function() {
           closeStudentSelectModal();
@@ -2877,11 +2958,11 @@
         item.className = "card-dex-item" + (isUnlocked ? " unlocked" : "");
 
         if (isUnlocked) {
-          item.innerHTML = '<div style="font-size:10px; font-weight:800; color:var(--primary); margin-bottom:4px;">' + c.bookOrder + '. ' + c.bookName + '</div>' +
-                           '<div style="width:100%; height:75px; background:url(\'' + c.imageUrl + '\') center/cover no-repeat; border-radius:8px; margin-bottom:4px; box-shadow:0 2px 6px rgba(0,0,0,0.15);"></div>' +
-                           '<div style="font-size:10px; font-weight:700; color:var(--foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + c.title + '</div>';
+          item.innerHTML = '<div style="font-size:10px; font-weight:800; color:var(--primary); margin-bottom:4px;">' + c.bookOrder + '. ' + escapeHtml(c.bookName) + '</div>' +
+                           '<div style="width:100%; height:75px; background:url(\'' + encodeURI(c.imageUrl || "") + '\') center/cover no-repeat; border-radius:8px; margin-bottom:4px; box-shadow:0 2px 6px rgba(0,0,0,0.15);"></div>' +
+                           '<div style="font-size:10px; font-weight:700; color:var(--foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(c.title) + '</div>';
         } else {
-          item.innerHTML = '<div style="font-size:10px; color:var(--muted); font-weight:700;">' + c.bookOrder + '. ' + c.bookName + '</div>' +
+          item.innerHTML = '<div style="font-size:10px; color:var(--muted); font-weight:700;">' + c.bookOrder + '. ' + escapeHtml(c.bookName) + '</div>' +
                            '<div style="font-size:20px; margin:6px 0;">🔒</div>' +
                            '<div style="font-size:10px; color:var(--muted);">미해금</div>';
         }
@@ -3010,23 +3091,23 @@
         
         var html = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px dashed var(--border); padding-bottom:6px;">' +
                    '<div style="display:flex; align-items:center; gap:6px;">' +
-                     '<span style="font-size:14px; font-weight:800; color:var(--primary);">' + g.studentName + '</span>' +
+                     '<span style="font-size:14px; font-weight:800; color:var(--primary);">' + escapeHtml(g.studentName) + '</span>' +
                      (isMyPost ? '<span style="font-size:10px; font-weight:800; color:var(--primary); background:var(--primary-light); padding:1px 6px; border-radius:6px;">나</span>' : '') +
                    '</div>' +
                    '<div style="display:flex; align-items:center; gap:6px;">' +
-                     '<span style="font-size:11px; font-weight:700; color:var(--muted); background:#f1f5f9; padding:2px 8px; border-radius:10px;">📅 ' + (g.createdAt || "오늘") + '</span>';
+                     '<span style="font-size:11px; font-weight:700; color:var(--muted); background:#f1f5f9; padding:2px 8px; border-radius:10px;">📅 ' + escapeHtml(g.createdAt || "오늘") + '</span>';
 
         if (isMyPost) {
-          html += '<button onclick="onEditGratitude(\'' + g.id + '\', \'' + encodeURIComponent(g.body) + '\')" style="background:none; border:none; color:var(--secondary); font-size:11px; font-weight:800; cursor:pointer; padding:2px 4px;">수정</button>' +
-                  '<button onclick="onDeleteGratitude(\'' + g.id + '\')" style="background:none; border:none; color:#ef4444; font-size:11px; font-weight:800; cursor:pointer; padding:2px 4px;">삭제</button>';
+          html += '<button onclick="onEditGratitude(\'' + escapeHtml(g.id) + '\', \'' + encodeURIComponent(g.body) + '\')" style="background:none; border:none; color:var(--secondary); font-size:11px; font-weight:800; cursor:pointer; padding:2px 4px;">수정</button>' +
+                  '<button onclick="onDeleteGratitude(\'' + escapeHtml(g.id) + '\')" style="background:none; border:none; color:#ef4444; font-size:11px; font-weight:800; cursor:pointer; padding:2px 4px;">삭제</button>';
         }
 
         html += '</div></div>' +
-                '<p style="font-size:14px; line-height:1.5; color:var(--foreground); margin-bottom:10px;" id="grat-body-' + g.id + '">' + g.body + '</p>' +
+                '<p style="font-size:14px; line-height:1.5; color:var(--foreground); margin-bottom:10px;" id="grat-body-' + escapeHtml(g.id) + '">' + escapeHtml(g.body) + '</p>' +
                 '<div style="display:flex; justify-content:flex-end;">' +
-                  '<button class="btn-heart-like ' + (g.isLikedByMe ? 'liked' : '') + '" onclick="onLikeGratitude(\'' + g.id + '\', this)" title="격려와 축복의 좋아요">' +
+                  '<button class="btn-heart-like ' + (g.isLikedByMe ? 'liked' : '') + '" onclick="onLikeGratitude(\'' + escapeHtml(g.id) + '\', this)" title="격려와 축복의 좋아요">' +
                     '<span class="heart-icon">' + (g.isLikedByMe ? '❤️' : '🤍') + '</span>' +
-                    '<span class="like-count">' + (g.likeCount || 0) + '</span>' +
+                    '<span class="like-count">' + Number(g.likeCount || 0) + '</span>' +
                   '</button>' +
                 '</div>';
         
@@ -3292,8 +3373,8 @@
         row.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid var(--border); padding:8px 10px; border-radius:10px; font-size:12px;";
         row.innerHTML = 
           '<div style="display:flex; flex-direction:column; gap:2px; min-width:0; padding-right:8px;">' +
-            '<span style="font-weight:700; color:var(--foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + item.reason + '</span>' +
-            '<span style="font-size:10px; color:var(--muted);">' + item.createdAt + '</span>' +
+            '<span style="font-weight:700; color:var(--foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(item.reason) + '</span>' +
+            '<span style="font-size:10px; color:var(--muted);">' + escapeHtml(item.createdAt) + '</span>' +
           '</div>' +
           '<span style="font-weight:800; font-size:13px; color:' + badgeColor + '; background:' + badgeBg + '; padding:2px 8px; border-radius:6px; flex-shrink:0;">' + amtText + '</span>';
         listEl.appendChild(row);
@@ -3339,12 +3420,12 @@
         card.innerHTML = imgHtml +
           '<div style="flex:1; display:flex; flex-direction:column; justify-content:space-between;">' +
             '<div>' +
-              '<div style="font-size:13px; font-weight:800; color:var(--foreground); margin-bottom:4px;">' + p.name + '</div>' +
-              (p.description ? '<div style="font-size:11px; color:var(--muted); margin-bottom:6px; max-height:32px; overflow:hidden;">' + p.description + '</div>' : '') +
+              '<div style="font-size:13px; font-weight:800; color:var(--foreground); margin-bottom:4px;">' + escapeHtml(p.name) + '</div>' +
+              (p.description ? '<div style="font-size:11px; color:var(--muted); margin-bottom:6px; max-height:32px; overflow:hidden;">' + escapeHtml(p.description) + '</div>' : '') +
             '</div>' +
             '<div>' +
-              '<div style="font-size:13px; font-weight:800; color:var(--secondary); margin-bottom:6px;">💎 보석 ' + p.gemPrice + '개</div>' +
-              '<button class="btn-pill btn-exchange-cta" style="width:100%; padding:8px 6px; font-size:12px;" onclick="onExchangeMarketProduct(\'' + p.id + '\')">💎 교환하기</button>' +
+              '<div style="font-size:13px; font-weight:800; color:var(--secondary); margin-bottom:6px;">💎 보석 ' + Number(p.gemPrice || 1) + '개</div>' +
+              '<button class="btn-pill btn-exchange-cta" style="width:100%; padding:8px 6px; font-size:12px;" onclick="onExchangeMarketProduct(\'' + escapeHtml(p.id) + '\')">💎 교환하기</button>' +
             '</div>' +
           '</div>';
 
@@ -3415,14 +3496,14 @@
           '<div style="display:flex; align-items:center; min-width:0; padding-right:8px;">' +
             visualHtml +
             '<div style="min-width:0;">' +
-              '<span style="font-weight:800; color:var(--foreground);">' + p.name + '</span> ' +
-              '<span style="font-size:12px; font-weight:800; color:var(--secondary); background:#fff0f7; padding:2px 6px; border-radius:6px;">💎 ' + p.gemPrice + '개</span>' +
-              (p.description ? '<div style="font-size:11px; color:var(--muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + p.description + '</div>' : '') +
+              '<span style="font-weight:800; color:var(--foreground);">' + escapeHtml(p.name) + '</span> ' +
+              '<span style="font-size:12px; font-weight:800; color:var(--secondary); background:#fff0f7; padding:2px 6px; border-radius:6px;">💎 ' + Number(p.gemPrice || 1) + '개</span>' +
+              (p.description ? '<div style="font-size:11px; color:var(--muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(p.description) + '</div>' : '') +
             '</div>' +
           '</div>' +
           '<div style="display:flex; gap:6px; flex-shrink:0;">' +
-            '<button class="btn-pill btn-secondary" style="width:auto; padding:4px 8px; font-size:11px;" onclick="openMarketAdminModal(\'' + p.id + '\')">✏️ 수정</button>' +
-            '<button class="btn-pill btn-secondary" style="width:auto; padding:4px 8px; font-size:11px; color:red; border-color:#fca5a5;" onclick="deleteMarketProductAdmin(\'' + p.id + '\')">🗑️ 삭제</button>' +
+            '<button class="btn-pill btn-secondary" style="width:auto; padding:4px 8px; font-size:11px;" onclick="openMarketAdminModal(\'' + escapeHtml(p.id) + '\')">✏️ 수정</button>' +
+            '<button class="btn-pill btn-secondary" style="width:auto; padding:4px 8px; font-size:11px; color:red; border-color:#fca5a5;" onclick="deleteMarketProductAdmin(\'' + escapeHtml(p.id) + '\')">🗑️ 삭제</button>' +
           '</div>';
         container.appendChild(item);
       });
