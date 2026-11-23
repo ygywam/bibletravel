@@ -1004,6 +1004,206 @@
         }
       }
 
+      if (funcName === "listInquiries") {
+        const sessionToken = args[0];
+        const teacherToken = args[1];
+        const isMaster = isUserTeacher(teacherToken);
+        const myStudentId = sessionToken && String(sessionToken).includes('_') ? String(sessionToken).split('_')[2] : (state.student ? String(state.student.studentId) : null);
+
+        let inquiries = [];
+        try {
+          const { data } = await sb.from('travel_settings').select('value').eq('key', 'INQUIRY_POSTS').single();
+          if (data && data.value) {
+            inquiries = JSON.parse(data.value);
+          }
+        } catch (e) {}
+
+        const safeInquiries = (inquiries || []).map(inq => {
+          const isMyPost = Boolean(myStudentId && inq.studentId && String(inq.studentId).trim() === String(myStudentId).trim());
+          const canView = isMaster || !inq.isPrivate || isMyPost;
+
+          return {
+            id: inq.id,
+            title: canView ? inq.title : "🔒 비밀 문의글입니다.",
+            content: canView ? inq.content : "비공개 문의글은 작성자와 마스터(선생님)만 열람할 수 있습니다. 🔒",
+            authorName: canView ? inq.authorName : (inq.authorName ? inq.authorName.slice(0, 1) + "**" : "익명"),
+            authorRole: inq.authorRole || "STUDENT",
+            studentId: canView ? inq.studentId : null,
+            isPrivate: Boolean(inq.isPrivate),
+            createdAt: inq.createdAt,
+            isRewarded: Boolean(inq.isRewarded),
+            rewardStamps: inq.rewardStamps || 0,
+            rewardGems: inq.rewardGems || 0,
+            rewardNote: inq.rewardNote || "",
+            rewardedAt: inq.rewardedAt || null,
+            isMyPost: isMyPost,
+            canView: canView
+          };
+        });
+
+        return { success: true, inquiries: safeInquiries };
+      }
+
+      if (funcName === "saveInquiry") {
+        const sessionToken = args[0];
+        const teacherToken = args[1];
+        const payload = args[2] || {};
+        const title = (payload.title || "").trim();
+        const content = (payload.content || "").trim();
+        const isPrivate = Boolean(payload.isPrivate);
+
+        if (!title) return { success: false, error: "제목을 입력해주세요." };
+        if (!content) return { success: false, error: "내용을 입력해주세요." };
+
+        let authorName = "익명";
+        let authorRole = "STUDENT";
+        let studentId = null;
+
+        if (isUserTeacher(teacherToken)) {
+          authorRole = "TEACHER";
+          authorName = "선생님";
+        } else if (sessionToken && String(sessionToken).includes('_')) {
+          studentId = String(sessionToken).split('_')[2];
+          const { data: s } = await sb.from('travel_students').select('name, department').eq('student_id', studentId).single();
+          if (s) {
+            authorName = s.name;
+            if (String(s.department).includes("교사")) authorRole = "TEACHER";
+          }
+        } else if (state.student) {
+          studentId = state.student.studentId;
+          authorName = state.student.name;
+          if (String(state.student.department).includes("교사")) authorRole = "TEACHER";
+        } else {
+          return { success: false, error: "로그인 후 문의글을 작성할 수 있습니다." };
+        }
+
+        const newInquiry = {
+          id: "INQ_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+          title: title,
+          content: content,
+          authorName: authorName,
+          authorRole: authorRole,
+          studentId: studentId,
+          isPrivate: isPrivate,
+          createdAt: new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }).slice(0, 16),
+          isRewarded: false,
+          rewardStamps: 0,
+          rewardGems: 0,
+          rewardNote: "",
+          rewardedAt: null
+        };
+
+        let inquiries = [];
+        try {
+          const { data } = await sb.from('travel_settings').select('value').eq('key', 'INQUIRY_POSTS').single();
+          if (data && data.value) inquiries = JSON.parse(data.value);
+        } catch(e) {}
+
+        inquiries.unshift(newInquiry);
+        if (inquiries.length > 300) inquiries = inquiries.slice(0, 300);
+
+        await sb.from('travel_settings').upsert({ key: 'INQUIRY_POSTS', value: JSON.stringify(inquiries) });
+        return { success: true, inquiry: newInquiry };
+      }
+
+      if (funcName === "rewardInquiry") {
+        const teacherToken = args[0];
+        const inquiryId = args[1];
+        const stampCount = Number(args[2]) || 0;
+        const gemCount = Number(args[3]) || 0;
+
+        if (!isUserTeacher(teacherToken)) {
+          return { success: false, error: "마스터(선생님) 권한이 필요합니다." };
+        }
+        if (stampCount <= 0 && gemCount <= 0) {
+          return { success: false, error: "지급할 도장이나 보석 수량을 선택해주세요." };
+        }
+
+        let inquiries = [];
+        const { data } = await sb.from('travel_settings').select('value').eq('key', 'INQUIRY_POSTS').single();
+        if (data && data.value) {
+          try { inquiries = JSON.parse(data.value); } catch(e) {}
+        }
+
+        const target = inquiries.find(i => String(i.id) === String(inquiryId));
+        if (!target) return { success: false, error: "해당 문의글을 찾을 수 없습니다." };
+        if (target.isRewarded) return { success: false, error: "이미 보상이 지급된 문의글입니다." };
+        if (!target.studentId) return { success: false, error: "학생 작성 문의글에만 보상을 지급할 수 있습니다." };
+
+        const { data: student } = await sb.from('travel_students').select('stamp_balance, gem_balance, name').eq('student_id', target.studentId).single();
+        if (!student) return { success: false, error: "해당 학생 정보를 찾을 수 없습니다." };
+
+        const newStamps = (student.stamp_balance || 0) + stampCount;
+        const newGems = (student.gem_balance || 0) + gemCount;
+
+        await sb.from('travel_students').update({
+          stamp_balance: newStamps,
+          gem_balance: newGems
+        }).eq('student_id', target.studentId);
+
+        let rewardParts = [];
+        if (stampCount > 0) {
+          rewardParts.push(`도장 ${stampCount}개`);
+          await sb.from('travel_coin_ledger').insert({
+            student_id: target.studentId,
+            type: 'STAMP',
+            change_stamps: stampCount,
+            reason: `문의게시판 보상 (도장 +${stampCount})`
+          });
+        }
+        if (gemCount > 0) {
+          rewardParts.push(`보석 ${gemCount}개`);
+          await sb.from('travel_coin_ledger').insert({
+            student_id: target.studentId,
+            type: 'GEM',
+            change_gems: gemCount,
+            reason: `문의게시판 보상 (보석 +${gemCount})`
+          });
+        }
+
+        target.isRewarded = true;
+        target.rewardStamps = stampCount;
+        target.rewardGems = gemCount;
+        target.rewardNote = `운영 피드백 감사 보상: ${rewardParts.join(', ')} 지급완료`;
+        target.rewardedAt = getKstDateString();
+
+        await sb.from('travel_settings').upsert({ key: 'INQUIRY_POSTS', value: JSON.stringify(inquiries) });
+
+        return {
+          success: true,
+          rewardNote: target.rewardNote,
+          studentName: student.name,
+          stampCount: stampCount,
+          gemCount: gemCount
+        };
+      }
+
+      if (funcName === "deleteInquiry") {
+        const sessionToken = args[0];
+        const teacherToken = args[1];
+        const inquiryId = args[2];
+        const isMaster = isUserTeacher(teacherToken);
+        const myStudentId = sessionToken && String(sessionToken).includes('_') ? String(sessionToken).split('_')[2] : (state.student ? String(state.student.studentId) : null);
+
+        let inquiries = [];
+        const { data } = await sb.from('travel_settings').select('value').eq('key', 'INQUIRY_POSTS').single();
+        if (data && data.value) {
+          try { inquiries = JSON.parse(data.value); } catch(e) {}
+        }
+
+        const target = inquiries.find(i => String(i.id) === String(inquiryId));
+        if (!target) return { success: false, error: "글을 찾을 수 없습니다." };
+
+        const isAuthor = myStudentId && target.studentId && String(target.studentId).trim() === String(myStudentId).trim();
+        if (!isMaster && !isAuthor) {
+          return { success: false, error: "삭제 권한이 없습니다." };
+        }
+
+        inquiries = inquiries.filter(i => String(i.id) !== String(inquiryId));
+        await sb.from('travel_settings').upsert({ key: 'INQUIRY_POSTS', value: JSON.stringify(inquiries) });
+        return { success: true };
+      }
+
       console.warn("미구현 함수:", funcName);
       return { success: true };
     } catch(err) {
@@ -1282,6 +1482,7 @@
     else if (viewId === "dex") loadCardDex();
     else if (viewId === "gratitude") loadGratitudeFeed();
     else if (viewId === "shop") loadShopView();
+    else if (viewId === "inquiry") loadInquiryBoard();
     else if (viewId === "teacher") loadTeacherDashboard();
   }
 
@@ -3956,3 +4157,237 @@
       }
     });
   }
+
+  // ==========================================
+  // 💬 [문의 & 버그 제보 게시판 모듈]
+  // ==========================================
+  function loadInquiryBoard() {
+    var container = document.getElementById("inquiry-feed-list");
+    var authorBadge = document.getElementById("inquiry-author-badge");
+
+    if (authorBadge) {
+      if (state.isTeacher || state.isMasterAdmin) {
+        authorBadge.textContent = "작성자: 선생님 (마스터)";
+        authorBadge.style.background = "#fef3c7";
+        authorBadge.style.color = "#b45309";
+      } else if (state.student) {
+        authorBadge.textContent = "작성자: " + state.student.name + " (" + (state.student.department || "학생") + ")";
+        authorBadge.style.background = "var(--primary-light)";
+        authorBadge.style.color = "var(--primary)";
+      } else {
+        authorBadge.textContent = "⚠️ 로그인 후 작성 가능";
+        authorBadge.style.background = "#f1f5f9";
+        authorBadge.style.color = "#64748b";
+      }
+    }
+
+    if (!container) return;
+    container.innerHTML = "<p style='text-align:center; padding:24px; color:var(--muted); font-size:13px;'>문의글 목록을 불러오는 중...</p>";
+
+    apiCall("listInquiries", state.sessionToken, state.teacherToken).then(function(res) {
+      if (!res || !res.success || !res.inquiries) {
+        container.innerHTML = "<p style='text-align:center; padding:24px; color:#ef4444; font-size:13px;'>목록을 불러오지 못했습니다.</p>";
+        return;
+      }
+      renderInquiryFeed(res.inquiries);
+    });
+  }
+
+  function renderInquiryFeed(inquiries) {
+    var container = document.getElementById("inquiry-feed-list");
+    if (!container) return;
+    container.innerHTML = "";
+
+    if (!inquiries || inquiries.length === 0) {
+      container.innerHTML = "<p style='text-align:center; padding:30px; color:var(--muted); font-size:13px;'>아직 등록된 문의글이 없습니다.<br>불편한 점이나 버그를 첫 번째로 남겨보세요! 💡</p>";
+      return;
+    }
+
+    var isMaster = Boolean(state.isTeacher || state.isMasterAdmin);
+
+    inquiries.forEach(function(inq) {
+      var card = document.createElement("div");
+      card.className = "inquiry-card";
+      card.id = "inquiry-card-" + inq.id;
+
+      // 상단 배지 구성
+      var privacyBadge = inq.isPrivate 
+        ? '<span class="inquiry-badge-private">🔒 비밀글</span>' 
+        : '<span class="inquiry-badge-public">🌐 공개</span>';
+
+      var rewardBadge = inq.isRewarded 
+        ? '<span class="inquiry-badge-reward">🎁 보상지급됨</span>' 
+        : '';
+
+      var authorRoleText = inq.authorRole === "TEACHER" ? "선생님" : "학생";
+      var authorBadge = '<span style="font-size:11px; font-weight:700; color:var(--muted); background:#f1f5f9; padding:2px 8px; border-radius:8px;">' + escapeHtml(inq.authorName) + ' (' + authorRoleText + ')</span>';
+
+      var canDelete = isMaster || inq.isMyPost;
+      var deleteBtnHtml = canDelete 
+        ? '<button onclick="onDeleteInquiry(\'' + escapeHtml(inq.id) + '\')" style="background:none; border:none; color:#ef4444; font-size:11px; font-weight:800; cursor:pointer; padding:2px 6px;">🗑️ 삭제</button>' 
+        : '';
+
+      // 본문 HTML
+      var contentHtml = '';
+      if (!inq.canView) {
+        contentHtml = '<p style="font-size:13px; color:#94a3b8; font-style:italic; background:#f8fafc; padding:12px; border-radius:10px; border:1px dashed #cbd5e1; margin:8px 0;">' + escapeHtml(inq.content) + '</p>';
+      } else {
+        contentHtml = '<p style="font-size:13px; color:var(--foreground); line-height:1.6; white-space:pre-wrap; background:#f8fafc; padding:12px; border-radius:10px; border:1px solid #e2e8f0; margin:8px 0;">' + escapeHtml(inq.content) + '</p>';
+      }
+
+      // 보상 완료 배너
+      var rewardBannerHtml = '';
+      if (inq.isRewarded) {
+        rewardBannerHtml = 
+          '<div style="display:flex; align-items:center; gap:8px; background:#fffbeb; border:1px solid #fde68a; color:#b45309; font-size:12px; font-weight:800; padding:8px 12px; border-radius:10px; margin-top:8px;">' +
+            '<span>🎁</span>' +
+            '<span>' + escapeHtml(inq.rewardNote || "운영 피드백 감사 보상 지급 완료") + '</span>' +
+          '</div>';
+      }
+
+      // 마스터 보상 지급 도구 (마스터 로그인 시 + 학생 글 + 미지급 상태)
+      var masterRewardToolHtml = '';
+      if (isMaster && inq.studentId && !inq.isRewarded) {
+        masterRewardToolHtml = 
+          '<div style="background:#fffbeb; border:1.5px dashed #f59e0b; padding:12px; border-radius:12px; margin-top:10px;">' +
+            '<div style="font-size:12px; font-weight:800; color:#b45309; margin-bottom:8px; display:flex; align-items:center; gap:4px;">' +
+              '<span>👩‍🏫 마스터 보상 선물 (학생: ' + escapeHtml(inq.authorName) + ')</span>' +
+            '</div>' +
+            '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">' +
+              '<label style="font-size:12px; font-weight:700; color:#78350f;">도장:</label>' +
+              '<select id="inq-reward-stamp-' + inq.id + '" style="padding:5px 8px; border-radius:8px; border:1px solid #d1d5db; font-size:12px; font-weight:700; background:#ffffff; outline:none;">' +
+                '<option value="0">도장 없음</option>' +
+                '<option value="2">도장 2개</option>' +
+                '<option value="3" selected>도장 3개</option>' +
+              '</select>' +
+              '<label style="font-size:12px; font-weight:700; color:#78350f;">보석:</label>' +
+              '<select id="inq-reward-gem-' + inq.id + '" style="padding:5px 8px; border-radius:8px; border:1px solid #d1d5db; font-size:12px; font-weight:700; background:#ffffff; outline:none;">' +
+                '<option value="0" selected>보석 없음</option>' +
+                '<option value="1">보석 1개</option>' +
+                '<option value="2">보석 2개</option>' +
+              '</select>' +
+              '<button class="btn-pill" style="width:auto; padding:6px 14px; font-size:12px; background:#f59e0b; color:#ffffff; font-weight:800;" onclick="onRewardInquiry(\'' + escapeHtml(inq.id) + '\', \'' + escapeHtml(inq.authorName) + '\')">' +
+                '✨ 보상 지급하기' +
+              '</button>' +
+            '</div>' +
+          '</div>';
+      }
+
+      card.innerHTML = 
+        '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">' +
+          '<div style="display:flex; align-items:center; gap:6px;">' +
+            privacyBadge +
+            rewardBadge +
+            authorBadge +
+          '</div>' +
+          '<div style="display:flex; align-items:center; gap:4px;">' +
+            '<span style="font-size:11px; color:var(--muted);">📅 ' + escapeHtml(inq.createdAt || "") + '</span>' +
+            deleteBtnHtml +
+          '</div>' +
+        '</div>' +
+        '<h4 style="font-size:15px; font-weight:800; color:var(--foreground); margin:4px 0 6px 0;">' + escapeHtml(inq.title) + '</h4>' +
+        contentHtml +
+        rewardBannerHtml +
+        masterRewardToolHtml;
+
+      container.appendChild(card);
+    });
+  }
+
+  function onSubmitInquiry() {
+    var titleEl = document.getElementById("inquiry-title-input");
+    var contentEl = document.getElementById("inquiry-content-input");
+    var privateEl = document.getElementById("inquiry-private-check");
+
+    if (!titleEl || !contentEl) return;
+    var title = titleEl.value.trim();
+    var content = contentEl.value.trim();
+    var isPrivate = privateEl ? privateEl.checked : true;
+
+    if (!title) return showToast("문의 제목을 입력하세요.");
+    if (!content) return showToast("문의 내용을 입력하세요.");
+
+    if (!state.sessionToken && !state.teacherToken && !state.student) {
+      return showToast("학생 또는 관리자 로그인이 필요합니다.");
+    }
+
+    showToast("💌 문의글을 등록하는 중...");
+    apiCall("saveInquiry", state.sessionToken, state.teacherToken, {
+      title: title,
+      content: content,
+      isPrivate: isPrivate
+    }).then(function(res) {
+      if (res && res.success) {
+        showToast("🎉 문의글이 성공적으로 등록되었습니다!");
+        titleEl.value = "";
+        contentEl.value = "";
+        loadInquiryBoard();
+      } else {
+        showToast("⚠️ " + (res ? res.error : "등록 실패"));
+      }
+    });
+  }
+
+  function onRewardInquiry(inquiryId, authorName) {
+    if (!state.isTeacher && !state.isMasterAdmin) {
+      return showToast("관리자(교사) 권한이 필요합니다.");
+    }
+
+    var stampEl = document.getElementById("inq-reward-stamp-" + inquiryId);
+    var gemEl = document.getElementById("inq-reward-gem-" + inquiryId);
+
+    var stampCount = stampEl ? parseInt(stampEl.value, 10) : 0;
+    var gemCount = gemEl ? parseInt(gemEl.value, 10) : 0;
+
+    if (stampCount <= 0 && gemCount <= 0) {
+      return showToast("도장 또는 보석 수량을 최소 1개 이상 선택하세요.");
+    }
+
+    var descParts = [];
+    if (stampCount > 0) descParts.push("도장 " + stampCount + "개");
+    if (gemCount > 0) descParts.push("보석 " + gemCount + "개");
+
+    showToastConfirm("'" + authorName + "' 학생에게 [" + descParts.join(", ") + "]을(를) 보상으로 지급하시겠습니까?").then(function(ok) {
+      if (!ok) return;
+
+      showToast("보상 지급 처리 중...");
+      apiCall("rewardInquiry", state.teacherToken, inquiryId, stampCount, gemCount).then(function(res) {
+        if (res && res.success) {
+          showToast("✨ [" + authorName + "] 학생에게 보상이 성공적으로 지급되었습니다!");
+          loadInquiryBoard();
+          if (state.student) {
+            apiCall("fetchLatestStudentData", state.student.studentId).then(function(sRes) {
+              if (sRes && sRes.success) {
+                state.student.stampBalance = sRes.stampBalance;
+                state.student.gemBalance = sRes.gemBalance;
+                renderWallet();
+              }
+            });
+          }
+        } else {
+          showToast("⚠️ " + (res ? res.error : "보상 지급 실패"));
+        }
+      });
+    });
+  }
+
+  function onDeleteInquiry(inquiryId) {
+    showToastConfirm("이 문의글을 삭제하시겠습니까?").then(function(ok) {
+      if (!ok) return;
+
+      showToast("삭제 중...");
+      apiCall("deleteInquiry", state.sessionToken, state.teacherToken, inquiryId).then(function(res) {
+        if (res && res.success) {
+          showToast("🗑️ 문의글이 삭제되었습니다.");
+          loadInquiryBoard();
+        } else {
+          showToast("⚠️ " + (res ? res.error : "삭제 실패"));
+        }
+      });
+    });
+  }
+
+  window.loadInquiryBoard = loadInquiryBoard;
+  window.onSubmitInquiry = onSubmitInquiry;
+  window.onRewardInquiry = onRewardInquiry;
+  window.onDeleteInquiry = onDeleteInquiry;
