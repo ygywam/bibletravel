@@ -235,7 +235,7 @@
 
         const { data: logs } = await sb.from('travel_reading_logs').select('book_name, chapter, read_date, is_on_time').eq('student_id', studentId);
         const metrics = calculateStudentMetrics(logs);
-        const cleanLogs = (logs || []).map(l => ({ bookName: l.book_name, chapter: l.chapter }));
+        const cleanLogs = (logs || []).map(l => ({ bookName: l.book_name, chapter: l.chapter, readDate: l.read_date }));
 
         // 최신 Day 및 Streak를 travel_students에 비동기 반영
         sb.from('travel_students').update({
@@ -275,7 +275,7 @@
           totalUsedStamps: data.total_used_stamps,
           streakOnTime: metrics.streakOnTime,
           currentDayIndex: metrics.currentDayIndex,
-          readLogs: (logs || []).map(l => ({ bookName: l.book_name, chapter: l.chapter }))
+          readLogs: (logs || []).map(l => ({ bookName: l.book_name, chapter: l.chapter, readDate: l.read_date }))
         };
       }
 
@@ -307,7 +307,7 @@
             student_id: studentId,
             book_name: bookName,
             chapter: targetCh,
-            read_date: new Date().toISOString().slice(0, 10),
+            read_date: getKstDateString(),
             is_on_time: Boolean(isOnTime)
           }, { onConflict: 'student_id,book_name,chapter' });
 
@@ -342,7 +342,7 @@
           totalUsedStamps: latestStudent.total_used_stamps,
           streakOnTime: metrics.streakOnTime,
           currentDayIndex: metrics.currentDayIndex,
-          readLogs: (allLogs || []).map(l => ({ bookName: l.book_name, chapter: l.chapter }))
+          readLogs: (allLogs || []).map(l => ({ bookName: l.book_name, chapter: l.chapter, readDate: l.read_date }))
         };
       }
 
@@ -498,19 +498,36 @@
         const likesCountMap = {};
         const myLikedMap = {};
         let todayMyLikesCount = 0;
-        const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+        const todayStr = getKstDateString();
 
         (likes || []).forEach(l => {
           const gId = String(l.gratitude_id);
           likesCountMap[gId] = (likesCountMap[gId] || 0) + 1;
           if (myStudentId && String(l.student_id).trim() === String(myStudentId).trim()) {
             myLikedMap[gId] = true;
-            const lDate = new Date(l.created_at).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+            const lDate = getKstDateString(new Date(l.created_at));
             if (lDate === todayStr) {
               todayMyLikesCount++;
             }
           }
         });
+
+        // 오늘 성경읽기 및 감사작성 여부 확인
+        let hasReadBibleToday = false;
+        let hasWrittenGratitudeToday = false;
+        if (myStudentId) {
+          const { data: todayLogs } = await sb.from('travel_reading_logs')
+            .select('id')
+            .eq('student_id', myStudentId)
+            .eq('read_date', todayStr)
+            .limit(1);
+          hasReadBibleToday = Boolean(todayLogs && todayLogs.length > 0);
+
+          hasWrittenGratitudeToday = (posts || []).some(p => {
+            return String(p.student_id).trim() === String(myStudentId).trim() &&
+                   getKstDateString(new Date(p.created_at)) === todayStr;
+          });
+        }
 
         const entries = (posts || []).map(p => {
           const pId = String(p.id);
@@ -531,7 +548,9 @@
         return {
           success: true,
           entries: entries,
-          todayMyLikesCount: todayMyLikesCount
+          todayMyLikesCount: todayMyLikesCount,
+          hasReadBibleToday: hasReadBibleToday,
+          hasWrittenGratitudeToday: hasWrittenGratitudeToday
         };
       }
 
@@ -541,12 +560,22 @@
         if (!sessionToken) return { success: false, error: "로그인이 필요합니다." };
         if (!bodyText || !bodyText.trim()) return { success: false, error: "감사 내용을 입력하세요." };
         const studentId = String(sessionToken).split('_')[2];
-        const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+        const todayStr = getKstDateString();
 
-        // 오늘 이미 감사 작성했는지 확인
+        // 1. 오늘 성경을 1장 이상 읽었는지 확인 (성경 읽기가 선행되어야 함)
+        const { data: todayLogs } = await sb.from('travel_reading_logs')
+          .select('id')
+          .eq('student_id', studentId)
+          .eq('read_date', todayStr)
+          .limit(1);
+        if (!todayLogs || todayLogs.length === 0) {
+          return { success: false, error: "오늘 홈 탭에서 성경을 먼저 1장 이상 읽어야 감사제목을 작성할 수 있습니다! 📖" };
+        }
+
+        // 2. 오늘 이미 감사 작성했는지 확인
         const { data: todayGrat } = await sb.from('travel_gratitude').select('id,created_at').eq('student_id', studentId);
         const alreadyWritten = (todayGrat || []).some(g => {
-          return new Date(g.created_at).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }) === todayStr;
+          return getKstDateString(new Date(g.created_at)) === todayStr;
         });
         if (alreadyWritten) {
           return { success: false, error: "오늘의 감사제목은 이미 작성하셨습니다! 내일 또 작성해 주세요." };
@@ -581,9 +610,30 @@
         const gratId = args[1];
         if (!sessionToken) return { success: false, error: "로그인이 필요합니다." };
         const fromStudentId = String(sessionToken).split('_')[2];
-        const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+        const todayStr = getKstDateString();
 
-        // 1. 대상 감사글 조회
+        // 1. 성경 읽기 선행 확인
+        const { data: todayLogs } = await sb.from('travel_reading_logs')
+          .select('id')
+          .eq('student_id', fromStudentId)
+          .eq('read_date', todayStr)
+          .limit(1);
+        if (!todayLogs || todayLogs.length === 0) {
+          return { success: false, error: "오늘 홈 탭에서 성경을 먼저 1장 이상 읽어야 좋아요를 누를 수 있습니다! 📖" };
+        }
+
+        // 2. 오늘의 감사제목 작성 선행 확인
+        const { data: myTodayGrat } = await sb.from('travel_gratitude')
+          .select('id,created_at')
+          .eq('student_id', fromStudentId);
+        const hasWrittenGratToday = (myTodayGrat || []).some(g => {
+          return getKstDateString(new Date(g.created_at)) === todayStr;
+        });
+        if (!hasWrittenGratToday) {
+          return { success: false, error: "오늘의 감사제목을 먼저 작성해야 친구들에게 좋아요를 보낼 수 있습니다! 🙏" };
+        }
+
+        // 3. 대상 감사글 조회
         const { data: targetGrat, error: tgErr } = await sb.from('travel_gratitude').select('*').eq('id', Number(gratId)).single();
         if (tgErr || !targetGrat) return { success: false, error: "해당 감사글을 찾을 수 없습니다." };
 
@@ -591,26 +641,26 @@
           return { success: false, error: "본인이 작성한 글에는 좋아요를 누를 수 없습니다." };
         }
 
-        // 2. 이미 좋아요를 눌렀는지 확인
+        // 4. 이미 좋아요를 눌렀는지 확인
         const { data: existingLike } = await sb.from('travel_gratitude_likes').select('id').match({ gratitude_id: Number(gratId), student_id: fromStudentId }).maybeSingle();
         if (existingLike) {
           return { success: false, error: "이미 응원(좋아요)을 누른 감사글입니다." };
         }
 
-        // 3. 오늘 좋아요 3회 제한 확인
+        // 5. 오늘 좋아요 3회 제한 확인
         const { data: myLikes } = await sb.from('travel_gratitude_likes').select('created_at').eq('student_id', fromStudentId);
-        const todayCount = (myLikes || []).filter(l => new Date(l.created_at).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }) === todayStr).length;
+        const todayCount = (myLikes || []).filter(l => getKstDateString(new Date(l.created_at)) === todayStr).length;
         if (todayCount >= 3) {
           return { success: false, error: "좋아요는 하루 최대 3번까지만 누를 수 있습니다!" };
         }
 
-        // 4. 좋아요 레코드 추가
+        // 6. 좋아요 레코드 추가
         await sb.from('travel_gratitude_likes').insert({
           gratitude_id: Number(gratId),
           student_id: fromStudentId
         });
 
-        // 5. 보상 지급 (보낸 학생 도장 +1, 작성자 학생 도장 +1)
+        // 7. 보상 지급 (보낸 학생 도장 +1, 작성자 학생 도장 +1)
         const { data: fromStudent } = await sb.from('travel_students').select('stamp_balance').eq('student_id', fromStudentId).single();
         const fromNewStamp = (fromStudent ? fromStudent.stamp_balance : 0) + 1;
         await sb.from('travel_students').update({ stamp_balance: fromNewStamp }).eq('student_id', fromStudentId);
@@ -1999,7 +2049,7 @@
     var prevLogsBackup = JSON.parse(JSON.stringify(state.student.readLogs));
 
     if (action === "add") {
-      state.student.readLogs.push({ bookName: bookName, chapter: targetCh });
+      state.student.readLogs.push({ bookName: bookName, chapter: targetCh, readDate: getKstDateString() });
     } else {
       state.student.readLogs = state.student.readLogs.filter(function(l) {
         return !(String(l.bookName) === bookName && Number(l.chapter) === targetCh);
@@ -3026,49 +3076,57 @@
     apiCall("listGratitudeEntries", state.sessionToken).then(function(res) {
       var feedList = (res && res.success && res.entries) ? res.entries : [];
       var usedLikes = res ? (res.todayMyLikesCount || 0) : 0;
-      renderGratitudeFeed(feedList, usedLikes);
+      var hasReadBible = res ? Boolean(res.hasReadBibleToday) : false;
+      var hasWrittenGrat = res ? Boolean(res.hasWrittenGratitudeToday) : false;
+      renderGratitudeFeed(feedList, usedLikes, hasReadBible, hasWrittenGrat);
     });
   }
 
   // [감사 피드 렌더링] 성경 완독 -> 감사 작성 -> 좋아요 체인 제어
-  function renderGratitudeFeed(items, usedLikes) {
+  function renderGratitudeFeed(items, usedLikes, serverHasReadBible, serverHasWrittenGrat) {
     var container = document.getElementById("gratitude-feed-list");
     if (!container) return;
     container.innerHTML = "";
 
     var myStudentId = (state.student && state.student.studentId) ? String(state.student.studentId) : null;
-    var now = new Date();
-    var yyyy = now.getFullYear();
-    var mm = (now.getMonth() + 1 < 10 ? "0" : "") + (now.getMonth() + 1);
-    var dd = (now.getDate() < 10 ? "0" : "") + now.getDate();
-    var todayStr = yyyy + "-" + mm + "-" + dd;
+    var todayStr = getKstDateString();
     
-    // 1. 오늘 성경을 1장 이상 읽었는지 검사 (readLogs 확인)
-    var hasReadBibleToday = false;
-    if (state.student && state.student.readLogs) {
-      // readLogs에 기록이 있고, 마지막 진도 체크가 진행되었는지 확인
-      hasReadBibleToday = state.student.readLogs.length > 0; 
+    // 1. 오늘 성경을 1장 이상 읽었는지 검사 (서버 응답 우선, 클라이언트 readLogs 폴백)
+    var hasReadBibleToday = Boolean(serverHasReadBible);
+    if (!hasReadBibleToday && state.student && state.student.readLogs) {
+      hasReadBibleToday = state.student.readLogs.some(function(l) {
+        return l.readDate === todayStr;
+      });
     }
 
-    // 2. 오늘 본인의 감사를 작성했는지 검사
-    var hasWrittenGratitudeToday = false;
-    items.forEach(function(g) {
-      var isMyPost = (myStudentId && String(g.studentId) === myStudentId);
-      var isTodayPost = (g.createdAt && g.createdAt.indexOf(todayStr) === 0);
-      if (isMyPost && isTodayPost) {
-        hasWrittenGratitudeToday = true;
-      }
-    });
+    // 2. 오늘 본인의 감사를 작성했는지 검사 (서버 응답 우선, 클라이언트 피드 목록 폴백)
+    var hasWrittenGratitudeToday = Boolean(serverHasWrittenGrat);
+    if (!hasWrittenGratitudeToday) {
+      items.forEach(function(g) {
+        var isMyPost = (myStudentId && String(g.studentId) === myStudentId);
+        var isTodayPost = (g.createdAt && g.createdAt.indexOf(todayStr) === 0);
+        if (isMyPost && isTodayPost) {
+          hasWrittenGratitudeToday = true;
+        }
+      });
+    }
+
+    // 전역 상태에 보관하여 좋아요 및 감사 제출 검증에 활용
+    state.gratitudeStatus = {
+      hasReadBibleToday: hasReadBibleToday,
+      hasWrittenGratitudeToday: hasWrittenGratitudeToday,
+      usedLikes: usedLikes || 0
+    };
 
     // 상단 진행 가이드 바 렌더링
     var remainingLikes = Math.max(0, 3 - (usedLikes || 0));
     var guideMsg = "";
     if (!hasReadBibleToday) {
-      guideMsg = "⚠️ <strong>1단계:</strong> 홈 탭에서 성경을 먼저 1장 이상 읽어야 감사를 쓸 수 있어요!";
+      guideMsg = "⚠️ <strong>1단계:</strong> 오늘 홈 탭에서 성경을 먼저 1장 이상 읽어야 감사를 쓸 수 있어요! 📖";
     } else if (!hasWrittenGratitudeToday) {
-      guideMsg = "⚠️ <strong>2단계:</strong> 오늘의 감사를 먼저 작성해야 친구들에게 좋아요를 보낼 수 있어요!";
+      guideMsg = "⚠️ <strong>2단계:</strong> 오늘의 감사를 먼저 작성해야 친구들에게 좋아요를 보낼 수 있어요! 🙏";
     } else {
-      guideMsg = "🎉 <strong>3단계:</strong> 오늘 보낼 수 있는 좋아요: <strong>" + remainingLikes + " / 3회</strong> (누르면 나도+1, 친구도+1 도장!)";
+      guideMsg = "🎉 <strong>3단계:</strong> 오늘 보낼 수 있는 좋아요: <strong>" + remainingLikes + " / 3회</strong> (누르면 나도+1, 친구도+1 도장! 💖)";
     }
 
     var statusHtml = '<div style="margin-bottom:12px; padding:10px 12px; background:var(--primary-light); border:1.5px solid var(--primary-border); border-radius:12px; font-size:12px; font-weight:700; color:var(--primary);">' +
@@ -3081,6 +3139,17 @@
     } else {
       items.forEach(function(g) {
         var isMyPost = (myStudentId && String(g.studentId) === myStudentId);
+        var canLike = hasReadBibleToday && hasWrittenGratitudeToday;
+        var btnOpacity = canLike ? "1" : "0.55";
+        var btnCursor = canLike ? "pointer" : "not-allowed";
+        var btnTitle = isMyPost 
+          ? "자신의 글에는 좋아요를 누를 수 없습니다" 
+          : (!hasReadBibleToday 
+              ? "오늘 홈 탭에서 성경을 먼저 읽어야 좋아요를 누를 수 있습니다" 
+              : (!hasWrittenGratitudeToday 
+                  ? "오늘 감사를 먼저 작성해야 좋아요를 누를 수 있습니다" 
+                  : "격려와 축복의 좋아요"));
+
         var heartColor = g.isLikedByMe ? "#ef4444" : "#94a3b8";
         var heartBg = g.isLikedByMe ? "#fef2f2" : "#f1f5f9";
         var heartText = (g.isLikedByMe ? "❤️ " : "🤍 ") + (g.likeCount || 0);
@@ -3105,7 +3174,7 @@
         html += '</div></div>' +
                 '<p style="font-size:14px; line-height:1.5; color:var(--foreground); margin-bottom:10px;" id="grat-body-' + escapeHtml(g.id) + '">' + escapeHtml(g.body) + '</p>' +
                 '<div style="display:flex; justify-content:flex-end;">' +
-                  '<button class="btn-heart-like ' + (g.isLikedByMe ? 'liked' : '') + '" onclick="onLikeGratitude(\'' + escapeHtml(g.id) + '\', this)" title="격려와 축복의 좋아요">' +
+                  '<button class="btn-heart-like ' + (g.isLikedByMe ? 'liked' : '') + '" style="opacity:' + btnOpacity + '; cursor:' + btnCursor + ';" onclick="onLikeGratitude(\'' + escapeHtml(g.id) + '\', this, ' + (isMyPost ? 'true' : 'false') + ')" title="' + btnTitle + '">' +
                     '<span class="heart-icon">' + (g.isLikedByMe ? '❤️' : '🤍') + '</span>' +
                     '<span class="like-count">' + Number(g.likeCount || 0) + '</span>' +
                   '</button>' +
@@ -3147,8 +3216,20 @@
   }
 
   // 💖 좋아요 클릭 핸들러 (인터랙티브 햅틱 + 하트 팝핑 애니메이션)
-  function onLikeGratitude(gratId, btnEl) {
+  function onLikeGratitude(gratId, btnEl, isMyPost) {
     if (!state.sessionToken) return showToast("로그인이 필요합니다.");
+
+    if (isMyPost) {
+      return showToast("자신의 감사제목에는 좋아요를 누를 수 없습니다. 😊");
+    }
+
+    var status = state.gratitudeStatus || {};
+    if (!status.hasReadBibleToday) {
+      return showToast("⚠️ 오늘 홈 탭에서 성경을 먼저 1장 이상 읽어야 좋아요를 누를 수 있어요! 📖");
+    }
+    if (!status.hasWrittenGratitudeToday) {
+      return showToast("⚠️ 오늘의 감사제목을 먼저 작성해야 친구들에게 좋아요를 보낼 수 있어요! 🙏");
+    }
 
     // 모바일 햅틱 진동 피드백
     if (window.navigator && typeof window.navigator.vibrate === "function") {
@@ -3190,6 +3271,11 @@
     var input = document.getElementById("gratitude-input");
     if (!input || !input.value || !input.value.trim()) return showToast("감사 내용을 입력하세요.");
     if (!state.sessionToken) return showToast("학생 로그인이 필요합니다.");
+
+    var status = state.gratitudeStatus || {};
+    if (!status.hasReadBibleToday) {
+      return showToast("⚠️ 오늘 홈 탭에서 성경을 먼저 1장 이상 읽어야 감사를 작성할 수 있습니다! 📖");
+    }
 
     var bodyText = input.value.trim();
     showToast("🙏 감사제목을 저장하는 중...");
