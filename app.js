@@ -20,8 +20,8 @@
   var state = {
     sessionToken: localStorage.getItem("bt_session_token") || null,
     teacherToken: sessionStorage.getItem("bt_teacher_token") || null,
-    isTeacher: sessionStorage.getItem("bt_is_master_admin") === "true",
-    isMasterAdmin: sessionStorage.getItem("bt_is_master_admin") === "true",
+    isTeacher: false,
+    isMasterAdmin: false,
     student: null,
     selectedStudentId: null,
     activeMapId: "M01",
@@ -99,8 +99,17 @@
   // 교사/관리자 권한 판별 유틸리티 (마스터 PIN 로그인 또는 소속 부서가 '교사'인 계정 모두 관리 권한 부여)
   function isUserTeacher(token) {
     if (state.isTeacher) return true;
-    if (token && String(token).startsWith("TEACHER_TOKEN_")) return true;
+    if (token && (String(token).startsWith("TEACHER_TOKEN_") || String(token).startsWith("MASTER_TOKEN_"))) return true;
     if (state.student && String(state.student.department).indexOf("교사") !== -1) return true;
+    return false;
+  }
+
+  // 👑 마스터 총괄 관리자 권한 판별 유틸리티 (교사와 엄격히 분리: 7777 PIN 또는 조용희 안수집사 전용)
+  function isUserMaster(token) {
+    if (state.isMasterAdmin === true) return true;
+    if (state.student && state.student.name === "조용희") return true;
+    if (sessionStorage.getItem("bt_is_master_admin") === "true") return true;
+    if (token && (String(token).startsWith("MASTER_TOKEN_") || token === "TEACHER_TOKEN_MASTER")) return true;
     return false;
   }
 
@@ -415,9 +424,9 @@
 
         let userUnlockedSet = {};
         if (studentId) {
-          const { data: myCards } = await sb.from('travel_student_cards').select('card_order').eq('student_id', studentId);
+          const { data: myCards } = await sb.from('travel_student_cards').select('card_order, unlocked_at').eq('student_id', studentId);
           (myCards || []).forEach(c => {
-            userUnlockedSet[Number(c.card_order)] = true;
+            userUnlockedSet[Number(c.card_order)] = c.unlocked_at || true;
           });
         }
 
@@ -429,7 +438,7 @@
             img: `/cards/bt_${b.order < 10 ? '0' + b.order : b.order}.jpg`
           };
 
-          const isUnlocked = (userUnlockedSet[b.order] === true);
+          const isUnlocked = Boolean(userUnlockedSet[b.order]);
           if (isUnlocked) unlockedCount++;
 
           return {
@@ -439,7 +448,8 @@
             title: cardInfo.title || (b.name + " 완독 카드"),
             category: cardInfo.category || "성경",
             imageUrl: cardInfo.img || `/cards/bt_${b.order < 10 ? '0' + b.order : b.order}.jpg`,
-            isUnlocked: isUnlocked
+            isUnlocked: isUnlocked,
+            unlockedAt: typeof userUnlockedSet[b.order] === 'string' ? userUnlockedSet[b.order] : null
           };
         });
 
@@ -452,29 +462,48 @@
       }
 
       if (funcName === "verifyTeacherPin") {
-        const pin = args[0];
-        // 1) 안전한 Supabase RPC 우선 시도 (네트워크 평문 비교 방어)
+        const pin = String(args[0]).trim();
+
+        // 1) 7777은 마스터 총괄 관리자 전용 PIN
+        if (pin === "7777") {
+          const tToken = `MASTER_TOKEN_${Date.now()}`;
+          return { success: true, token: tToken, teacherToken: tToken, isTeacher: true, isMasterAdmin: true, role: 'MASTER' };
+        }
+
+        // 2) 교사 개인 PIN 확인 (travel_students 테이블에서 department='교사' 조회)
         try {
-          const { data: rpcRes, error: rpcErr } = await sb.rpc('verify_teacher_pin', {
-            p_pin: String(pin).trim()
-          });
-          if (!rpcErr && rpcRes) {
-            if (rpcRes.success) {
-              const tToken = `TEACHER_TOKEN_${Date.now()}`;
-              return { success: true, token: tToken, teacherToken: tToken, isTeacher: true, isMasterAdmin: true };
-            }
-            return { success: false, error: rpcRes.error || "관리자 PIN이 일치하지 않습니다." };
+          const { data: teacher } = await sb.from('travel_students')
+            .select('student_id, name, department, pin')
+            .eq('department', '교사')
+            .eq('pin', pin)
+            .maybeSingle();
+
+          if (teacher) {
+            const isMaster = (teacher.name === "조용희");
+            const tToken = isMaster ? `MASTER_TOKEN_${Date.now()}` : `TEACHER_TOKEN_${teacher.student_id}_${Date.now()}`;
+            return {
+              success: true,
+              token: tToken,
+              teacherToken: tToken,
+              isTeacher: true,
+              isMasterAdmin: isMaster,
+              teacherName: teacher.name,
+              role: isMaster ? 'MASTER' : 'TEACHER'
+            };
           }
         } catch (e) {}
 
-        // 2) RPC 미설치 시 테이블 조회 폴백
-        const { data } = await sb.from('travel_settings').select('value').eq('key', 'TEACHER_PIN').single();
-        const teacherPin = data ? data.value.trim() : "7777";
-        if (String(pin).trim() === teacherPin) {
-          const tToken = `TEACHER_TOKEN_${Date.now()}`;
-          return { success: true, token: tToken, teacherToken: tToken, isTeacher: true, isMasterAdmin: true };
-        }
-        return { success: false, error: "관리자 PIN이 일치하지 않습니다." };
+        // 3) Supabase RPC 확인 폴백
+        try {
+          const { data: rpcRes, error: rpcErr } = await sb.rpc('verify_teacher_pin', { p_pin: pin });
+          if (!rpcErr && rpcRes && rpcRes.success) {
+            const isMaster = (pin === "7777");
+            const tToken = isMaster ? `MASTER_TOKEN_${Date.now()}` : `TEACHER_TOKEN_${Date.now()}`;
+            return { success: true, token: tToken, teacherToken: tToken, isTeacher: true, isMasterAdmin: isMaster, role: isMaster ? 'MASTER' : 'TEACHER' };
+          }
+        } catch (e) {}
+
+        return { success: false, error: "관리자 또는 교사 PIN이 일치하지 않습니다." };
       }
 
       if (funcName === "saveRecommendedBooks") {
@@ -1007,7 +1036,7 @@
       if (funcName === "listInquiries") {
         const sessionToken = args[0];
         const teacherToken = args[1];
-        const isMaster = isUserTeacher(teacherToken);
+        const isMaster = isUserMaster(teacherToken);
         const myStudentId = sessionToken && String(sessionToken).includes('_') ? String(sessionToken).split('_')[2] : (state.student ? String(state.student.studentId) : null);
 
         let inquiries = [];
@@ -1025,7 +1054,7 @@
           return {
             id: inq.id,
             title: canView ? inq.title : "🔒 비밀 문의글입니다.",
-            content: canView ? inq.content : "비공개 문의글은 작성자와 마스터(선생님)만 열람할 수 있습니다. 🔒",
+            content: canView ? inq.content : "비공개 문의글은 작성자와 마스터 총괄 관리자만 열람할 수 있습니다. 🔒",
             authorName: canView ? inq.authorName : (inq.authorName ? inq.authorName.slice(0, 1) + "**" : "익명"),
             authorRole: inq.authorRole || "STUDENT",
             studentId: canView ? inq.studentId : null,
@@ -1116,8 +1145,8 @@
         const gemCount = Number(args[3]) || 0;
         const replyMsg = args[4] ? String(args[4]).trim() : "";
 
-        if (!isUserTeacher(teacherToken)) {
-          return { success: false, error: "마스터(선생님) 권한이 필요합니다." };
+        if (!isUserMaster(teacherToken)) {
+          return { success: false, error: "👑 마스터 총괄 관리자 권한이 필요합니다. (교사는 답변/보상 권한이 없습니다.)" };
         }
         if (stampCount <= 0 && gemCount <= 0 && !replyMsg) {
           return { success: false, error: "보상 수량을 선택하거나 해결 안내 답변을 입력해주세요." };
@@ -1199,7 +1228,7 @@
         const sessionToken = args[0];
         const teacherToken = args[1];
         const inquiryId = args[2];
-        const isMaster = isUserTeacher(teacherToken);
+        const isMaster = isUserMaster(teacherToken);
         const myStudentId = sessionToken && String(sessionToken).includes('_') ? String(sessionToken).split('_')[2] : (state.student ? String(state.student.studentId) : null);
 
         let inquiries = [];
@@ -1235,32 +1264,40 @@
     try {
       var savedToken = localStorage.getItem("bt_session_token");
       var savedStudent = localStorage.getItem("bt_student_data");
-      var savedIsMaster = (localStorage.getItem("bt_is_master_admin") === "true" || sessionStorage.getItem("bt_is_master_admin") === "true");
-      var savedTeacherToken = localStorage.getItem("bt_teacher_token") || sessionStorage.getItem("bt_teacher_token");
-
-      if (savedIsMaster) {
-        state.isTeacher = true;
-        state.isMasterAdmin = true;
-        state.teacherToken = savedTeacherToken || "TEACHER_TOKEN_MASTER";
-      }
+      var savedIsMaster = (sessionStorage.getItem("bt_is_master_admin") === "true");
+      var savedTeacherToken = sessionStorage.getItem("bt_teacher_token") || localStorage.getItem("bt_teacher_token");
 
       if (savedToken && savedStudent) {
         state.sessionToken = savedToken;
         state.student = JSON.parse(savedStudent);
         if (state.student && String(state.student.department).indexOf("교사") !== -1) {
           state.isTeacher = true;
+          // 🚨 조용희 안수집사만 자동 마스터! 다른 교사는 오직 세션스토리지에 유효한 마스터 플래그가 있을 때만!
           if (state.student.name === "조용희" || savedIsMaster) {
             state.isMasterAdmin = true;
             state.teacherToken = savedTeacherToken || ("TEACHER_TOKEN_" + state.student.studentId);
             sessionStorage.setItem("bt_is_master_admin", "true");
-            localStorage.setItem("bt_is_master_admin", "true");
-          } else if (!state.isMasterAdmin) {
-            state.teacherToken = "TEACHER_TOKEN_" + state.student.studentId;
+          } else {
+            state.isMasterAdmin = false;
+            state.teacherToken = savedTeacherToken || ("TEACHER_TOKEN_" + state.student.studentId);
+            sessionStorage.removeItem("bt_is_master_admin");
+            localStorage.removeItem("bt_is_master_admin");
           }
+        } else {
+          state.isTeacher = false;
+          state.isMasterAdmin = false;
+          sessionStorage.removeItem("bt_is_master_admin");
+          localStorage.removeItem("bt_is_master_admin");
         }
         updateUserHeader();
       } else if (savedIsMaster) {
+        state.isTeacher = true;
+        state.isMasterAdmin = true;
+        state.teacherToken = savedTeacherToken || "TEACHER_TOKEN_MASTER";
         updateUserHeader();
+      } else {
+        state.isTeacher = false;
+        state.isMasterAdmin = false;
       }
     } catch(e) {
       console.warn("세션 복원 예외 처리:", e);
@@ -2221,6 +2258,77 @@
     66: { title: "새 하늘과 새 땅의 승리", category: "예언서", img: "/cards/bt_66.jpg" }
   };
 
+  // 📖 성경 66권 수집 카드 뒷면용 핵심 은혜 요약 마스터 데이터
+  var BIBLE_BOOK_SUMMARIES = {
+    1: "태초에 하나님이 천지를 창조하시고, 아브라함과 이삭, 야곱, 요셉에 이르는 믿음의 족장들과 언약의 시작이 담긴 책!",
+    2: "유월절 어린양의 피와 홍해의 기적으로 종살이에서 벗어나 시내산 언약과 성막으로 인도하신 구원의 책!",
+    3: "거룩하신 하나님께 나아가는 5대 제사와 성결한 삶의 법도를 가르쳐 주시는 거룩의 책!",
+    4: "광야 40년 여정 속에서도 불기둥과 구름기둥, 만나로 신실하게 인도하신 훈련과 은혜의 책!",
+    5: "약속의 땅 가나안을 바라보며 모세가 온 마음을 다해 들려주는 쉐마 말씀과 축복의 설교!",
+    6: "강하고 담대하라! 믿음으로 요단을 건너고 여리고를 무너뜨리며 약속의 땅을 정복한 승리의 책!",
+    7: "타락과 부르짖음, 사사의 구원으로 이어지는 역사 속에서 오직 하나님만이 참된 왕이심을 보여주는 책!",
+    8: "어두운 사사 시대 속에서도 보아스의 기업 무름과 룻의 순종을 통해 다윗의 계보와 메시야의 빛을 잇는 사랑의 책!",
+    9: "한나의 기도와 사무엘의 순종, 골리앗을 꺾은 다윗의 믿음과 하나님의 마음에 합한 왕의 준비!",
+    10: "다윗 왕조의 번영과 통일 왕국의 영광, 연약함 속에서도 회개하며 은혜를 구하는 다윗 언약의 책!",
+    11: "솔로몬의 지혜와 황금 성전 건축, 갈라진 남북 왕국과 갈멜산 엘리야의 불꽃 믿음!",
+    12: "엘리사의 놀라운 기적들과 수많은 왕들의 역사 속에서도 하나님의 말씀을 지키며 남겨진 그루터기의 이야기!",
+    13: "아담부터 다윗까지의 족보와 성전 찬양대, 예배를 회복하며 세워가는 언약 백성의 정체성!",
+    14: "솔로몬의 성전 낙성식과 유다 왕들의 부흥, 하나님의 전을 사모하며 여호와를 구할 때 주시는 회복의 역사!",
+    15: "바벨론 포로에서 돌아와 무너진 성전을 재건하고 말씀으로 백성들의 신앙을 다시 세운 회복의 책!",
+    16: "한 손에는 무기를, 한 손에는 연장을 쥐고 52일 만에 예루살렘 성벽을 완성한 믿음의 지도자 느헤미야의 기록!",
+    17: "죽으면 죽으리이다! 위기 속에서 민족을 구원하신 하나님의 보이지 않는 섭리와 부림절의 승리!",
+    18: "까닭 없는 고난 속에서도 흔들리지 않는 신앙으로 마침내 귀로만 듣던 하나님을 눈으로 보게 된 믿음의 드라마!",
+    19: "다윗과 성도들의 기쁨, 눈물, 찬양, 감사가 오롯이 녹아있는 영혼의 보석 상자이자 기도의 노래!",
+    20: "여호와를 경외하는 것이 지혜의 근본이라! 일상과 삶을 밝히는 하늘의 보석 같은 지혜의 말씀!",
+    21: "해 아래 모든 것이 헛되나 하나님을 경외하고 그 명령을 지키는 것이 사람의 본분임을 밝히는 인생 지혜서!",
+    22: "신랑과 신부의 순결하고 뜨거운 사랑을 통해 그리스도와 성도 간의 영원한 사랑을 노래한 아름다운 시!",
+    23: "고난받는 종 예수 그리스도의 탄생과 십자가 대속, 새 하늘과 새 땅의 소망을 예언한 복음의 예언서!",
+    24: "눈물의 선지자 예레미야를 통해 마음 판에 새겨질 새로운 언약과 희망을 선포하신 말씀!",
+    25: "폐허가 된 예루살렘을 바라보며 아침마다 새로우신 주의 인자와 긍휼을 노래하는 소망의 눈물!",
+    26: "골짜기의 마른 뼈들이 큰 군대로 살아나듯, 성전 문지방에서 흘러나온 생명수가 온 땅을 살리는 환상의 책!",
+    27: "뜻을 정하여 우상의 제물을 거절하고 사자굴 속에서도 지키신 하나님의 영원한 나라를 꿈꾼 예언서!",
+    28: "끝없이 변절하는 이스라엘을 결코 포기하지 않으시는 하나님의 눈물겨운 짝사랑과 회복의 메시지!",
+    29: "여호와의 날에 남녀 종들에게 부어주실 성령의 단비와 누구든지 주의 이름을 부르는 자는 구원을 얻으리라!",
+    30: "오직 정의를 물 같이, 공의를 마르지 않는 강 같이 흐르게 하라! 불의에 맞선 담대한 외침!",
+    31: "교만한 에돔을 향한 심판과 시온 산에서 세워질 여호와의 나라의 구원을 선포한 말씀!",
+    32: "물고기 뱃속의 회개와 니느웨 성의 구원을 통해 온 세상을 품으시는 하나님의 무한한 자비를 보여준 책!",
+    33: "베들레헴 에브라다에서 나실 영원한 다스리는 자와 공의를 행하며 인자를 사랑하고 겸손히 행하라는 말씀!",
+    34: "포악한 앗수르 니느웨의 멸망을 선포하며 환난 날의 산성이신 하나님을 증거한 책!",
+    35: "비록 무화과나무가 무성치 못할지라도 나는 여호와로 말미암아 즐거워하리라! 의인은 믿음으로 살리라!",
+    36: "여호와의 심판의 날과 너로 말미암아 기쁨을 이기지 못하시며 잠잠히 사랑하시는 하나님의 축복!",
+    37: "성전을 재건하라! 이전 영광보다 나중 영광이 크리라 약속하시며 백성들의 마음을 일깨운 말씀!",
+    38: "힘으로도 되지 않고 능으로도 되지 않고 오직 나의 영으로 되느니라! 나귀 새끼를 타신 겸손한 왕의 예언!",
+    39: "내 이름을 경외하는 너희에게는 치료하는 광선을 비추리니 외양간에서 나온 송아지같이 뛰리라!",
+    40: "구약의 예언을 성취하러 오신 왕 예수 그리스도의 생애와 산상수훈, 천국 복음의 기록!",
+    41: "인자가 온 것은 섬김을 받으려 함이 아니라 도리어 섬기려 하고 목숨을 대속물로 주려 함이라!",
+    42: "잃어버린 자를 찾아 구원하러 오신 인자 예수님의 따스한 사랑과 비유가 가득한 복음서!",
+    43: "말씀이 육신이 되어 우리 가운데 거하시매... 생명의 떡, 세상의 빛, 부활이요 생명이신 하나님의 아들 예수님!",
+    44: "오직 성령이 너희에게 임하시면! 예루살렘에서 땅끝까지 거침없이 전진하는 성령과 복음의 행전!",
+    45: "복음에는 하나님의 의가 나타나서! 믿음으로 얻는 의(이신칭의)와 끊을 수 없는 하나님의 사랑의 대서사시!",
+    46: "십자가의 도는 구원받는 우리에게 하나님의 능력이라! 사랑은 언제까지나 떨어지지 아니하느니라!",
+    47: "우리가 이 보배를 질그릇에 가졌으니! 내 은혜가 네게 족하도다 이는 내 능력이 약한 데서 온전하여짐이라!",
+    48: "그리스도께서 우리를 자유롭게 하려고 자유를 주셨으니! 오직 성령의 열매는 사랑과 희락과 화평이라!",
+    49: "그리스도 안에서 하나 된 교회와 전신갑주를 입고 영적 싸움에서 승리하는 성도의 영광!",
+    50: "주 안에서 항상 기뻐하라! 내가 다시 말하노니 기뻐하라! 내게 능력 주시는 자 안에서 내가 모든 것을 할 수 있느니라!",
+    51: "만물의 으뜸이신 그리스도! 그 안에는 지혜와 지식의 모든 보화가 감추어져 있느니라!",
+    52: "항상 기뻐하라 쉬지 말고 기도하라 범사에 감사하라! 주님의 다시 오심을 기다리는 거룩한 신부!",
+    53: "흔들리지 않고 주의 날을 소망하며 게으르지 않고 힘써 선을 행하라는 권면의 편지!",
+    54: "믿음의 아들 디모데에게 전하는 목회 지침과 믿음의 선한 싸움을 싸우라는 사랑의 당부!",
+    55: "나는 선한 싸움을 싸우고 나의 달려갈 길을 마치고 믿음을 지켰으니 이제 나를 위하여 의의 면류관이 예비되었도다!",
+    56: "은혜로 구원받은 성도로서 선한 일에 열심을 내며 건강한 교회를 세워가라는 바울의 목회 서신!",
+    57: "도망친 노예 오네시모를 이제는 주 안에서 사랑받는 형제로 맞아달라는 용서와 화해의 편지!",
+    58: "믿음의 주요 또 온전하게 하시는 이인 예수를 바라보자! 영원한 대제사장이신 그리스도의 우월성과 믿음의 영웅들!",
+    59: "영혼 없는 몸이 죽은 것 같이 행함이 없는 믿음은 죽은 것이니라! 삶으로 증명하는 산 믿음의 지혜!",
+    60: "너희는 택하신 족속이요 왕 같은 제사장들이라! 고난 중에서도 썩지 않는 산 소망을 노래한 편지!",
+    61: "오직 우리 주 곧 구주 예수 그리스도의 은혜와 그를 아는 지식에서 자라가라! 주의 재림과 성결한 삶!",
+    62: "하나님은 사랑이시라! 우리가 서로 사랑하면 하나님이 우리 안에 거하시고 그의 사랑이 우리 안에 온전히 이루어지느니라!",
+    63: "진리 안에서 서로 사랑하며 미혹하는 자들을 경계하고 그리스도의 교훈 안에 머물라는 편지!",
+    64: "사랑하는 자여 네 영혼이 잘됨 같이 네가 범사에 잘되고 강건하기를 내가 간구하노라!",
+    65: "성도에게 단번에 주신 믿음의 도를 위하여 힘써 싸우라! 영원한 영광으로 인도하시는 하나님을 찬양!",
+    66: "보라 내가 만물을 새롭게 하노라! 아멘 주 예수여 오시옵소서! 다시 밤이 없는 새 하늘과 새 땅의 찬란한 최종 승리!"
+  };
+
+
   // [장 칩 터치 핸들러] 즉시 반응 + 안전한 서버 저장
   function onChapterChipClick(bookName, targetCh, maxCh) {
     if (!state.student) return showToast("로그인이 필요합니다.");
@@ -2336,7 +2444,8 @@
               bookName: bookName, 
               title: bookDef.order + ". " + bookName + " - " + cardInfo.title + " 해금! (+💎 2개)", 
               category: cardInfo.category, 
-              imageUrl: cardInfo.img 
+              imageUrl: cardInfo.img,
+              unlockedAt: new Date().toISOString() 
             }, true);
             loadCardDex();
           }
@@ -2827,7 +2936,7 @@
       if (res.student && String(res.student.department).indexOf("교사") !== -1) {
         state.isTeacher = true;
         state.teacherToken = "TEACHER_TOKEN_" + res.student.studentId;
-        // 🚨 조용희 안수집사이거나 마스터 PIN(7777 등)으로 로그인한 경우 즉시 마스터 관리자 자동 승격!
+        // 🚨 조용희 안수집사이거나 마스터 PIN(7777)으로 로그인한 경우만 마스터 관리자 승격!
         if (res.student.name === "조용희" || pin === "7777") {
           state.isMasterAdmin = true;
           sessionStorage.setItem("bt_is_master_admin", "true");
@@ -2836,9 +2945,14 @@
           localStorage.setItem("bt_teacher_token", state.teacherToken);
         } else {
           state.isMasterAdmin = false;
+          sessionStorage.removeItem("bt_is_master_admin");
+          localStorage.removeItem("bt_is_master_admin");
         }
-      } else if (state.isTeacher) {
-        onTeacherLogout(true);
+      } else {
+        state.isTeacher = false;
+        state.isMasterAdmin = false;
+        sessionStorage.removeItem("bt_is_master_admin");
+        localStorage.removeItem("bt_is_master_admin");
       }
       
       localStorage.setItem("bt_session_token", res.sessionToken);
@@ -2873,17 +2987,23 @@
     if (!pin) return showToast("PIN 번호 4자리를 입력하세요.");
 
     apiCall("verifyTeacherPin", pin).then(function(res) {
-      if (!res.success) return showToast(res.error || "교사/관리자 PIN 번호가 일치하지 않습니다.");
+      if (!res.success) return showToast(res.error || "일치하는 관리자 또는 교사 PIN이 아닙니다.");
 
       state.isTeacher = true;
-      state.isMasterAdmin = true;
+      state.isMasterAdmin = (res.isMasterAdmin === true);
       state.teacherToken = res.token;
-      sessionStorage.setItem("bt_is_master_admin", "true");
-      sessionStorage.setItem("bt_teacher_token", res.token);
-      localStorage.setItem("bt_is_master_admin", "true");
-      localStorage.setItem("bt_teacher_token", res.token);
 
-      showToast("👑 마스터 관리자 인증 성공! (도감 전량 해금 및 관리자 권한 활성화)");
+      if (state.isMasterAdmin) {
+        sessionStorage.setItem("bt_is_master_admin", "true");
+        localStorage.setItem("bt_is_master_admin", "true");
+        showToast("👑 마스터 총괄 관리자 인증 성공! (도감 전량 해금 및 마스터 권한 활성화)");
+      } else {
+        sessionStorage.removeItem("bt_is_master_admin");
+        localStorage.removeItem("bt_is_master_admin");
+        showToast("👩‍🏫 교사 관리자 모드 활성화! (" + (res.teacherName || "선생님") + ")");
+      }
+      sessionStorage.setItem("bt_teacher_token", res.token);
+      localStorage.setItem("bt_teacher_token", res.token);
       
       var authBox = document.getElementById("teacher-auth-box");
       var panel = document.getElementById("teacher-panel");
@@ -3267,20 +3387,91 @@
     });
   }
 
+  var isDetailCardFlipped = false;
+  function flipDetailCard() {
+    var front = document.getElementById("detail-card-front");
+    var back = document.getElementById("detail-card-back");
+    isDetailCardFlipped = !isDetailCardFlipped;
+
+    if (front && back) {
+      if (isDetailCardFlipped) {
+        front.style.display = "none";
+        back.style.display = "block";
+      } else {
+        front.style.display = "block";
+        back.style.display = "none";
+      }
+    }
+  }
+
   function openCardDetailModal(card, isUnlocked) {
     var modal = document.getElementById("modal-card-detail");
     if (!modal) return;
+
+    isDetailCardFlipped = false;
+    var front = document.getElementById("detail-card-front");
+    var back = document.getElementById("detail-card-back");
+    if (front) front.style.display = "block";
+    if (back) back.style.display = "none";
 
     var catEl = document.getElementById("detail-card-category");
     var titleEl = document.getElementById("detail-card-title");
     var imgEl = document.getElementById("detail-card-img");
     var descEl = document.getElementById("detail-card-desc");
 
+    // 뒷면 엘리먼트들
+    var backOrderEl = document.getElementById("detail-back-order");
+    var backTitleEl = document.getElementById("detail-back-title");
+    var backDescEl = document.getElementById("detail-back-desc");
+    var backDateEl = document.getElementById("detail-back-date");
+    var backRewardEl = document.getElementById("detail-back-reward");
+    var backChaptersEl = document.getElementById("detail-back-chapters");
+
+    var bookOrder = Number(card.bookOrder) || 1;
+    var orderStr = bookOrder < 10 ? "0" + bookOrder : String(bookOrder);
+
     if (catEl) catEl.textContent = card.category || "BT 카드";
-    if (titleEl) titleEl.textContent = isUnlocked ? (card.bookOrder + ". " + card.bookName + " - " + card.title) : "미해금 카드";
+    if (titleEl) titleEl.textContent = isUnlocked ? (card.bookOrder + ". " + card.bookName + " - " + (card.title || "완독 카드")) : "미해금 카드 (" + card.bookName + ")";
+
     var lockSvg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='400' viewBox='0 0 300 400'><rect width='100%' height='100%' fill='%23f8fafc'/><text x='50%' y='46%' font-size='60' text-anchor='middle' dominant-baseline='middle'>🔒</text><text x='50%' y='62%' font-size='16' font-family='sans-serif' font-weight='bold' fill='%2394a3b8' text-anchor='middle' dominant-baseline='middle'>미해금 카드</text></svg>";
     if (imgEl) imgEl.src = (isUnlocked && card.imageUrl) ? card.imageUrl : lockSvg;
-    if (descEl) descEl.textContent = isUnlocked ? (card.bookName + " 완독을 축하합니다!") : "성경을 완독하여 카드를 해금하세요.";
+    if (descEl) descEl.textContent = isUnlocked ? (card.bookName + " 완독을 축하합니다! 💎 보석 +2개가 지급되었습니다.") : "성경 본문을 모두 읽고 완독하여 한정판 카드를 해금하세요.";
+
+    // 뒷면 데이터 바인딩
+    if (backOrderEl) backOrderEl.textContent = "BT-" + orderStr;
+    if (backTitleEl) backTitleEl.textContent = card.bookName + ": " + (card.title || "완독 소장용 카드");
+
+    var summary = (typeof BIBLE_BOOK_SUMMARIES !== 'undefined' && BIBLE_BOOK_SUMMARIES[bookOrder])
+      ? BIBLE_BOOK_SUMMARIES[bookOrder]
+      : (card.bookName + "의 거룩한 말씀과 은혜의 기록입니다.");
+    if (backDescEl) backDescEl.textContent = summary;
+
+    var formattedDate = "완독 해금됨";
+    if (card.unlockedAt) {
+      try {
+        var d = new Date(card.unlockedAt);
+        if (!isNaN(d.getTime())) {
+          formattedDate = d.getFullYear() + "." + (d.getMonth() + 1 < 10 ? "0" : "") + (d.getMonth() + 1) + "." + (d.getDate() < 10 ? "0" : "") + d.getDate() + " 완독";
+        }
+      } catch(e) {}
+    }
+
+    var totalCh = card.totalChapters || (function() {
+      var found = ALL_66_BIBLE_BOOKS.find(function(x) { return x.name === card.bookName || x.order === bookOrder; });
+      return found ? found.chapters : "";
+    })();
+
+    if (backDateEl) {
+      backDateEl.textContent = isUnlocked ? formattedDate : "🔒 미해금 (완독 시 자동 해금)";
+      backDateEl.style.color = isUnlocked ? "#0f172a" : "#94a3b8";
+    }
+    if (backRewardEl) {
+      backRewardEl.textContent = isUnlocked ? "보석 +2개 지급 완료!" : "완독 시: 💎 보석 2개 + 도감 영구 해금";
+      backRewardEl.style.color = isUnlocked ? "#059669" : "#b45309";
+    }
+    if (backChaptersEl) {
+      backChaptersEl.textContent = "총 " + totalCh + "장 완독";
+    }
 
     modal.classList.add("active");
     modal.style.display = "flex";
@@ -4206,10 +4397,14 @@
     var authorBadge = document.getElementById("inquiry-author-badge");
 
     if (authorBadge) {
-      if (state.isTeacher || state.isMasterAdmin) {
-        authorBadge.textContent = "작성자: 선생님 (마스터)";
+      if (state.isMasterAdmin) {
+        authorBadge.textContent = "작성자: 👑 마스터 총괄 관리자";
         authorBadge.style.background = "#fef3c7";
         authorBadge.style.color = "#b45309";
+      } else if (state.isTeacher) {
+        authorBadge.textContent = "작성자: 👩‍🏫 선생님 (" + (state.student ? state.student.name : "교사") + ")";
+        authorBadge.style.background = "#eff6ff";
+        authorBadge.style.color = "#1d4ed8";
       } else if (state.student) {
         authorBadge.textContent = "작성자: " + state.student.name + " (" + (state.student.department || "학생") + ")";
         authorBadge.style.background = "var(--primary-light)";
@@ -4243,7 +4438,7 @@
       return;
     }
 
-    var isMaster = Boolean(state.isTeacher || state.isMasterAdmin);
+    var isMaster = (state.isMasterAdmin === true);
 
     inquiries.forEach(function(inq) {
       var card = document.createElement("div");
@@ -4390,8 +4585,8 @@
   }
 
   function onRewardInquiry(inquiryId, authorName) {
-    if (!state.isTeacher && !state.isMasterAdmin) {
-      return showToast("관리자(교사) 권한이 필요합니다.");
+    if (!state.isMasterAdmin) {
+      return showToast("👑 마스터 총괄 관리자만 보상 및 해결 답변을 등록할 수 있습니다.");
     }
 
     var stampEl = document.getElementById("inq-reward-stamp-" + inquiryId);
@@ -4452,10 +4647,12 @@
 
   function openMasterPinPrompt() {
     closeStudentSelectModal();
-    var pin = prompt("👑 마스터 관리자 PIN 번호 4자리를 입력하세요:");
+    var pin = prompt("👑 마스터 총괄 관리자 전용 PIN 번호 4자리를 입력하세요:");
     if (!pin) return;
     apiCall("verifyTeacherPin", pin.trim()).then(function(res) {
-      if (!res.success) return showToast(res.error || "관리자 PIN이 일치하지 않습니다.");
+      if (!res.success || !res.isMasterAdmin) {
+        return showToast("⚠️ 마스터 관리자 전용 PIN이 일치하지 않습니다.");
+      }
 
       state.isTeacher = true;
       state.isMasterAdmin = true;
@@ -4465,7 +4662,7 @@
       localStorage.setItem("bt_is_master_admin", "true");
       localStorage.setItem("bt_teacher_token", res.token);
 
-      showToast("👑 마스터 관리자 인증 성공! (도감 전량 해금 및 관리자 센터 활성화)");
+      showToast("👑 마스터 총괄 관리자 인증 성공! (도감 전량 해금 및 마스터 권한 활성화)");
       updateUserHeader();
       loadCardDex();
       switchTab("teacher");
@@ -4477,7 +4674,9 @@
     var pin = input ? input.value.trim() : "";
     if (!pin) return showToast("마스터 PIN 4자리를 입력하세요.");
     apiCall("verifyTeacherPin", pin).then(function(res) {
-      if (!res.success) return showToast(res.error || "PIN이 일치하지 않습니다.");
+      if (!res.success || !res.isMasterAdmin) {
+        return showToast("⚠️ 마스터 관리자 전용 PIN이 일치하지 않습니다.");
+      }
       state.isTeacher = true;
       state.isMasterAdmin = true;
       state.teacherToken = res.token;
@@ -4485,7 +4684,7 @@
       sessionStorage.setItem("bt_teacher_token", res.token);
       localStorage.setItem("bt_is_master_admin", "true");
       localStorage.setItem("bt_teacher_token", res.token);
-      showToast("👑 마스터 권한으로 승격되었습니다!");
+      showToast("👑 마스터 권한으로 승격되었습니다! (도감 전량 해금)");
       updateUserHeader();
       loadCardDex();
       loadTeacherDashboard();
@@ -4674,3 +4873,5 @@
   window.simulateWalkOnboard = simulateWalkOnboard;
   window.simulateRewardOnboard = simulateRewardOnboard;
   window.flipHologramCard = flipHologramCard;
+  window.flipDetailCard = flipDetailCard;
+  window.closeCardDetailModal = closeCardDetailModal;
