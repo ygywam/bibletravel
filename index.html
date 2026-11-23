@@ -50,37 +50,269 @@
     <!-- 메인 콘텐츠 영역 (100% 동일 규격) -->
     <main class="app-main">
       
-      <!-- [뷰 0] 👋 온보딩 (미로그인 첫 진입 시 친절한 브랜드 및 규칙 안내 화면) -->
+      <!-- [뷰 0] 👋 온보딩 (미로그인 첫 진입 시 친절한 브랜드 및 인터렉티브 규칙 안내 화면) -->
       <section id="view-onboarding" class="view-section active">
-        <div class="card" style="text-align:center; padding:28px 20px; background: linear-gradient(135deg, #fff0f7 0%, #ffffff 100%); border:2px solid var(--primary-light); margin-bottom:20px;">
-          <div style="font-size:48px; margin-bottom:10px;">📖✨</div>
-          <h1 style="font-size:24px; font-weight:800; color:var(--foreground); margin-bottom:8px;">Bible Travel에 오신 것을 환영해요!</h1>
-          <p style="font-size:14px; color:var(--muted); line-height:1.6; max-width:500px; margin:0 auto 20px auto;">
-            매일성경 하루 1~3장 통독을 통해 8개 성경 유형 맵 위를 미로처럼 여행하며, 도장과 보석을 모으고 수집형 BT 카드를 수집해 보세요!
+        <!-- 웰컴 메인 히어로 배너 -->
+        <div class="card" style="text-align:center; padding:24px 18px; background: linear-gradient(135deg, #fff0f7 0%, #ffffff 100%); border:2px solid var(--primary-light); margin-bottom:16px;">
+          <div style="margin-bottom:8px;">
+            <img src="icon.svg" alt="Bible Travel" style="width:52px; height:52px; vertical-align:middle; filter:drop-shadow(0 4px 10px rgba(14,165,233,0.25));">
+          </div>
+          <h1 style="font-size:22px; font-weight:800; color:var(--foreground); margin-bottom:6px;">Bible Travel 성경 탐험 여행!</h1>
+          <p style="font-size:13px; color:var(--muted); line-height:1.6; max-width:500px; margin:0 auto 16px auto;">
+            매일 1~3장 말씀 통독으로 8개 성경 유형 맵을 완주하고, 도장과 보석을 모아 66권 수집형 BT 카드를 도감에 모아보세요!
           </p>
-          <button class="btn-pill btn-cta" style="width:auto; padding:14px 34px; font-size:16px; font-weight:800;" onclick="openStudentSelectModal()">
-            🚀 지금 시작하기 (학생/교사 로그인)
+          <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap;">
+            <button class="btn-pill btn-cta" style="width:auto; padding:12px 28px; font-size:15px; font-weight:800;" onclick="openStudentSelectModal()">
+              🚀 지금 시작하기 (학생/교사 로그인)
+            </button>
+            <button class="btn-pill" style="width:auto; padding:12px 18px; font-size:13px; font-weight:800; background:#f59e0b; color:#ffffff;" onclick="openMasterPinPrompt()">
+              👑 마스터 관리자
+            </button>
+          </div>
+        </div>
+
+        <!-- 💡 인터렉티브 4단계 성경 여행 체험 가이드 -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <h3 style="font-size:15px; font-weight:800; color:var(--foreground); display:flex; align-items:center; gap:6px;">
+            <span>💡 인터렉티브 통독 가이드</span>
+            <span style="font-size:10px; font-weight:700; color:#10b981; background:#ecfdf5; padding:2px 6px; border-radius:8px;">터치하여 체험하기</span>
+          </h3>
+          <span id="onboard-step-indicator" style="font-size:11px; font-weight:800; color:var(--primary); background:var(--primary-light); padding:2px 8px; border-radius:10px; border:1px solid var(--primary-border);">1 / 4 단계</span>
+        </div>
+
+        <!-- 인터렉티브 단계 탭 네비게이션 -->
+        <div class="onboard-step-nav">
+          <button class="onboard-step-btn active" onclick="setOnboardStep(0)">
+            <span style="font-size:16px;">🗺️</span>
+            <span>1. 통독 & 맵</span>
+          </button>
+          <button class="onboard-step-btn" onclick="setOnboardStep(1)">
+            <span style="font-size:16px;">💮</span>
+            <span>2. 도장 & 보석</span>
+          </button>
+          <button class="onboard-step-btn" onclick="setOnboardStep(2)">
+            <span style="font-size:16px;">🃏</span>
+            <span>3. BT 카드</span>
+          </button>
+          <button class="onboard-step-btn" onclick="setOnboardStep(3)">
+            <span style="font-size:16px;">💬</span>
+            <span>4. 소통 & 보상</span>
           </button>
         </div>
 
-        <!-- 3대 핵심 이용 규칙 가이드 -->
-        <h3 style="font-size:16px; margin-bottom:12px; color:var(--foreground);">💡 Bible Travel 통독 안내서</h3>
-        <div style="display:flex; flex-direction:column; gap:14px; margin-bottom:60px;">
-          <div class="card" style="margin:0;">
-            <div style="font-size:28px; margin-bottom:6px;">🏃‍♂️</div>
-            <h4 style="font-size:15px; font-weight:800; margin-bottom:4px;">1. 하루 1~3장 읽기 & 맵 전진</h4>
-            <p style="font-size:12px; color:var(--muted); line-height:1.5;">종이 성경이나 앱으로 본문을 읽고 완독 버튼을 터치하세요. 아바타가 오솔길을 따라 전진합니다!</p>
+        <!-- 단계 1: 🗺️ 통독 & 맵 전진 체험 -->
+        <div class="card onboard-step-card active" id="onboard-card-0" style="margin-bottom:14px; border:1.5px solid var(--primary-border);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:24px;">🏃‍♂️</span>
+              <div>
+                <h4 style="font-size:15px; font-weight:800; color:var(--foreground); margin:0;">1단계: 하루 1~3장 통독 & 맵 전진</h4>
+                <p style="font-size:11px; color:var(--muted); margin:1px 0 0 0;">말씀을 읽고 완독 버튼을 누르면 캐릭터가 맵 오솔길을 따라 걸어갑니다.</p>
+              </div>
+            </div>
           </div>
-          <div class="card" style="margin:0;">
-            <div style="font-size:28px; margin-bottom:6px;">💎</div>
-            <h4 style="font-size:15px; font-weight:800; margin-bottom:4px;">2. 도장 수집 & 보석 교환</h4>
-            <p style="font-size:12px; color:var(--muted); line-height:1.5;">정시 완독 시 하루 1개 도장 획득! 도장 10개를 모으면 영롱한 보석 1개로 교환할 수 있습니다.</p>
+
+          <!-- 인터렉티브 미니 맵 트랙 시뮬레이션 -->
+          <div class="mini-map-track">
+            <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#047857; margin-bottom:8px;">
+              <span>🌱 창세기 1장</span>
+              <span>🌿 2장</span>
+              <span>🌳 3장</span>
+              <span>🚩 체크포인트</span>
+            </div>
+            <div style="height:8px; background:#bbf7d0; border-radius:4px; position:relative; margin-bottom:14px;">
+              <div id="mini-onboard-avatar" class="mini-avatar-walker" style="position:absolute; top:-14px; left:0; transform:translateX(10px);">
+                🏃‍♂️
+              </div>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span id="mini-onboard-label" style="font-size:11.5px; font-weight:800; color:#065f46;">창세기 1장 완독! 아바타가 첫걸음을 내딛었어요! 🏃‍♂️</span>
+              <button class="btn-pill" style="width:auto; padding:4px 10px; font-size:11px; background:#10b981;" onclick="simulateWalkOnboard()">
+                👉 1칸 전진 체험!
+              </button>
+            </div>
           </div>
-          <div class="card" style="margin:0;">
-            <div style="font-size:28px; margin-bottom:6px;">📜</div>
-            <h4 style="font-size:15px; font-weight:800; margin-bottom:4px;">3. 66권 성경 완독 BT 카드 해금</h4>
-            <p style="font-size:12px; color:var(--muted); line-height:1.5;">성경 한 권을 끝까지 완독할 때마다 멋진 포켓몬 스타일 수집형 BT 카드 1장이 도감에 해금됩니다!</p>
+          <p style="font-size:11.5px; color:var(--muted); line-height:1.5; margin:0;">
+            💡 <strong>꿀팁:</strong> 종이 성경이나 앱으로 본문을 읽은 뒤, 홈 화면 진도표에서 터치 한 번으로 간편하게 완독을 저장할 수 있습니다.
+          </p>
+        </div>
+
+        <!-- 단계 2: 💮 도장 & 💎 보석 획득 체험 (신규 문의 보상 포함) -->
+        <div class="card onboard-step-card" id="onboard-card-1" style="margin-bottom:14px; border:1.5px solid #bfdbfe;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:24px;">💎</span>
+              <div>
+                <h4 style="font-size:15px; font-weight:800; color:var(--foreground); margin:0;">2단계: 도장 & 보석을 모으는 다양한 방법</h4>
+                <p style="font-size:11px; color:var(--muted); margin:1px 0 0 0;">아래 칩을 터치해서 가상 지갑에 도장과 보석을 모아보세요!</p>
+              </div>
+            </div>
           </div>
+
+          <!-- 가상 지갑 실시간 시뮬레이션 바 -->
+          <div style="background:#f8fafc; border:1.5px solid var(--border); border-radius:12px; padding:8px 12px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:11px; font-weight:800; color:var(--muted);">가상 체험 지갑:</span>
+            <div style="display:flex; gap:12px;">
+              <span style="font-size:13px; font-weight:800; color:var(--primary);">💮 도장: <strong id="sim-wallet-stamps">0개</strong></span>
+              <span style="font-size:13px; font-weight:800; color:var(--secondary);">💎 보석: <strong id="sim-wallet-gems">0개</strong></span>
+            </div>
+          </div>
+
+          <div id="sim-reward-bubble" style="font-size:11.5px; font-weight:700; color:#b45309; background:#fffbeb; border:1px solid #fef08a; border-radius:10px; padding:6px 10px; margin-bottom:10px; text-align:center;">
+            아래 항목을 터치하면 도장과 보석이 적립됩니다! 👇
+          </div>
+
+          <!-- 인터렉티브 보상 터치 칩 그리드 -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:10px;">
+            <div class="onboard-reward-chip" onclick="simulateRewardOnboard('bible')">
+              <div>
+                <strong style="font-size:11px; color:var(--foreground); display:block;">📖 성경 1장 완독</strong>
+                <span style="font-size:10px; color:var(--muted);">기본 읽기 보상</span>
+              </div>
+              <span style="font-size:11px; font-weight:800; color:var(--primary); background:var(--primary-light); padding:2px 6px; border-radius:6px;">💮 +1</span>
+            </div>
+            <div class="onboard-reward-chip" onclick="simulateRewardOnboard('gratitude')">
+              <div>
+                <strong style="font-size:11px; color:var(--foreground); display:block;">💖 하루 감사 나눔</strong>
+                <span style="font-size:10px; color:var(--muted);">매일 은혜 한 줄</span>
+              </div>
+              <span style="font-size:11px; font-weight:800; color:var(--primary); background:var(--primary-light); padding:2px 6px; border-radius:6px;">💮 +1</span>
+            </div>
+            <div class="onboard-reward-chip" onclick="simulateRewardOnboard('inquiry')" style="border-color:#f59e0b; background:#fffbeb;">
+              <div>
+                <strong style="font-size:11px; color:#b45309; display:block;">💬 문의 해결 답변</strong>
+                <span style="font-size:10px; color:#92400e;">마스터 특별 보상 ✨</span>
+              </div>
+              <span style="font-size:10px; font-weight:800; color:#b45309; background:#ffffff; padding:2px 5px; border-radius:6px; border:1px solid #fde68a;">💮2 / 💎1</span>
+            </div>
+            <div class="onboard-reward-chip" onclick="simulateRewardOnboard('streak')">
+              <div>
+                <strong style="font-size:11px; color:var(--foreground); display:block;">🔥 7일 연속 읽기</strong>
+                <span style="font-size:10px; color:var(--muted);">스트릭 달성 선물</span>
+              </div>
+              <span style="font-size:11px; font-weight:800; color:var(--secondary); background:#eff6ff; padding:2px 6px; border-radius:6px;">💎 +1</span>
+            </div>
+          </div>
+          <div class="onboard-reward-chip" onclick="simulateRewardOnboard('exchange')" style="margin-bottom:6px; justify-content:center; background:#f0fdf4; border-color:#86efac;">
+            <span style="font-size:11px; font-weight:800; color:#15803d;">🏦 은혜 환전소: 도장 10개 ➔ 보석 1개 교환해보기!</span>
+          </div>
+        </div>
+
+        <!-- 단계 3: 🃏 66권 성경 완독 BT 카드 수집 체험 -->
+        <div class="card onboard-step-card" id="onboard-card-2" style="margin-bottom:14px; border:1.5px solid #fef08a;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:24px;">📜</span>
+              <div>
+                <h4 style="font-size:15px; font-weight:800; color:var(--foreground); margin:0;">3단계: 66권 완독 수집형 BT 카드 도감</h4>
+                <p style="font-size:11px; color:var(--muted); margin:1px 0 0 0;">성경 한 권을 완독할 때마다 멋진 포켓몬 스타일 카드가 해금됩니다.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3D 홀로그램 카드 인터렉티브 미리보기 -->
+          <div class="hologram-preview-box">
+            <div class="hologram-card-inner" onclick="flipHologramCard()">
+              <!-- 카드 앞면 -->
+              <div id="holo-card-front" style="display:flex; flex-direction:column; align-items:center; justify-content:space-between; width:100%; height:100%;">
+                <div style="display:flex; justify-content:space-between; width:100%; font-size:10px; font-weight:800; color:#78350f;">
+                  <span>BT-01</span>
+                  <span>⭐⭐⭐⭐⭐</span>
+                </div>
+                <div style="font-size:42px; margin:4px 0;">📜👑</div>
+                <div style="text-align:center;">
+                  <strong style="font-size:13px; color:#1e293b; display:block;">창세기: 모세</strong>
+                  <span style="font-size:9.5px; color:#475569;">태초에 하나님이 천지를...</span>
+                </div>
+                <div style="font-size:9px; font-weight:800; color:#92400e; background:rgba(255,255,255,0.7); padding:2px 6px; border-radius:6px;">
+                  🔄 터치하여 뒷면 확인
+                </div>
+              </div>
+              <!-- 카드 뒷면 -->
+              <div id="holo-card-back" style="display:none; flex-direction:column; align-items:center; justify-content:space-between; width:100%; height:100%; background:rgba(255,255,255,0.9); border-radius:10px; padding:6px;">
+                <strong style="font-size:11px; color:#1e293b;">창세기 (50장 완독)</strong>
+                <p style="font-size:9.5px; color:#475569; line-height:1.4; text-align:center; margin:0;">
+                  천지창조와 노아의 방주, 아브라함과 요셉의 믿음의 여정이 담긴 시작의 책!
+                </p>
+                <div style="font-size:9.5px; font-weight:800; color:#047857; background:#dcfce7; padding:2px 8px; border-radius:8px;">
+                  완독 보상: 보석 2개 획득 완료!
+                </div>
+                <span style="font-size:9px; color:#94a3b8;">🔄 다시 터치하면 앞면</span>
+              </div>
+            </div>
+          </div>
+          <p style="font-size:11.5px; color:var(--muted); line-height:1.5; text-align:center; margin:0;">
+            창세기부터 요한계시록까지 총 66장의 아름다운 홀로그램 카드를 모두 수집해 보세요!
+          </p>
+        </div>
+
+        <!-- 단계 4: 💬 소통 & 문의 보상 체험 -->
+        <div class="card onboard-step-card" id="onboard-card-3" style="margin-bottom:14px; border:1.5px solid #fbcfe8;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:24px;">💬</span>
+              <div>
+                <h4 style="font-size:15px; font-weight:800; color:var(--foreground); margin:0;">4단계: 함께 나누는 감사 & 문의 보상 소통</h4>
+                <p style="font-size:11px; color:var(--muted); margin:1px 0 0 0;">친구들의 감사 나눔을 응원하고, 문의를 남겨 해결 보상을 받으세요.</p>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
+            <!-- 감사 나눔 미리보기 -->
+            <div style="background:#ffffff; border:1px solid var(--border); border-radius:12px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:20px;">💖</span>
+                <div>
+                  <strong style="font-size:12px; color:var(--foreground);">은혜 가득 감사제목 나눔</strong>
+                  <p style="font-size:11px; color:var(--muted); margin:1px 0 0 0;">매일 감사 한 줄 작성 시 도장 +1개 & 하트 응원 교환</p>
+                </div>
+              </div>
+              <span style="font-size:11px; font-weight:800; color:var(--primary); background:var(--primary-light); padding:2px 8px; border-radius:8px;">💮 +1 도장</span>
+            </div>
+
+            <!-- 문의게시판 마스터 해결 보상 미리보기 -->
+            <div style="background:linear-gradient(135deg, #fffbeb 0%, #ffffff 100%); border:1.5px solid #f59e0b; border-radius:12px; padding:10px 12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span style="font-size:16px;">👑</span>
+                  <strong style="font-size:12px; color:#b45309;">문의게시판 마스터 해결 보상</strong>
+                </div>
+                <span style="font-size:10px; font-weight:800; color:#ffffff; background:#10b981; padding:2px 6px; border-radius:6px;">✅ 해결완료</span>
+              </div>
+              <p style="font-size:11px; color:var(--foreground); margin:2px 0 6px 0; line-height:1.4;">
+                앱 사용 중 버그 제보, 불편사항, 아이디어를 남기면 마스터가 직접 답변하고 <strong>도장 2~3개 or 보석 1~2개</strong>를 드려요!
+              </p>
+              <div style="background:rgba(255,255,255,0.9); border:1px dashed #fde68a; border-radius:8px; padding:4px 8px; font-size:10.5px; color:#92400e;">
+                💬 마스터 답변: "소중한 제보 감사합니다! 도장 3개가 지급되었습니다."
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 온보딩 단계 조작 버튼 및 닷 인디케이터 -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; padding:0 4px;">
+          <button class="btn-pill btn-secondary" style="width:auto; padding:6px 14px; font-size:12px; font-weight:800;" onclick="moveOnboardStep(-1)">
+            ◀ 이전 단계
+          </button>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <span class="onboard-dot" style="display:inline-block; width:18px; height:8px; border-radius:4px; background:var(--primary); transition:all 0.2s ease;"></span>
+            <span class="onboard-dot" style="display:inline-block; width:8px; height:8px; border-radius:4px; background:var(--border); transition:all 0.2s ease;"></span>
+            <span class="onboard-dot" style="display:inline-block; width:8px; height:8px; border-radius:4px; background:var(--border); transition:all 0.2s ease;"></span>
+            <span class="onboard-dot" style="display:inline-block; width:8px; height:8px; border-radius:4px; background:var(--border); transition:all 0.2s ease;"></span>
+          </div>
+          <button class="btn-pill" style="width:auto; padding:6px 14px; font-size:12px; font-weight:800;" onclick="moveOnboardStep(1)">
+            다음 단계 ▶
+          </button>
+        </div>
+
+        <!-- 하단 시작 유도 카드 -->
+        <div style="background:linear-gradient(135deg, #eff6ff 0%, #ffffff 100%); border:1.5px solid #bfdbfe; border-radius:16px; padding:16px; text-align:center; margin-bottom:50px;">
+          <h4 style="font-size:14px; font-weight:800; color:var(--foreground); margin-bottom:4px;">🌟 준비되셨나요? 성경 여행을 시작해 보세요!</h4>
+          <p style="font-size:12px; color:var(--muted); margin-bottom:12px;">나만의 이름으로 접속하여 오늘 분량의 성경을 읽고 도장을 받아보세요.</p>
+          <button class="btn-pill btn-cta" style="width:100%; max-width:280px; margin:0 auto; padding:12px 20px; font-size:14px; font-weight:800;" onclick="openStudentSelectModal()">
+            👤 학생 / 교사 로그인하기
+          </button>
         </div>
       </section>
 
@@ -219,11 +451,25 @@
 
       <!-- [뷰 4.5] 🛍️ 상점 & 환전소 뷰 -->
       <section id="view-shop" class="view-section">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
           <h2 style="font-size:18px;">🛍️ 달란트 상점 & 은혜 환전소</h2>
           <button class="btn-pill btn-secondary" style="width:auto; padding:4px 10px; font-size:11px; font-weight:800;" onclick="openShopGuideModal()">
             💡 획득 방법 안내
           </button>
+        </div>
+
+        <!-- 💡 인터렉티브 획득 방법 안내 배너 -->
+        <div class="shop-guide-banner" onclick="openShopGuideModal()">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-size:26px;">💡</span>
+            <div>
+              <strong style="font-size:13.5px; color:var(--foreground);">도장 & 보석을 모으는 6가지 방법!</strong>
+              <p style="font-size:11px; color:var(--muted); margin:2px 0 0 0;">
+                성경 완독, 감사 나눔부터 <span style="color:#d97706; font-weight:800;">💬 문의 해결 보상</span>까지 인터렉티브 카드로 확인해보세요 ➔
+              </p>
+            </div>
+          </div>
+          <span class="btn-pill btn-secondary" style="font-size:11px; padding:4px 10px; flex-shrink:0;">가이드 보기</span>
         </div>
 
         <!-- 1. 은혜 환전소 (원장 기반 다중 교환 및 내역 조회) -->
@@ -753,48 +999,196 @@
       </div>
     </div>  
 
-    <!-- 도장 & 보석 획득 가이드 팝업 모달 -->
+    <!-- 도장 & 보석 획득 가이드 팝업 모달 (인터렉티브 카드 형태) -->
     <div id="modal-shop-guide" class="modal-overlay">
-      <div class="modal-card" style="max-height:85vh; overflow-y:auto; width:92%; max-width:440px; text-align:left; padding:20px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--border); padding-bottom:8px;">
-          <h3 style="font-size:16px; font-weight:800; color:var(--foreground);">💡 도장 & 보석 획득 가이드</h3>
+      <div class="modal-card" style="max-height:88vh; overflow-y:auto; width:94%; max-width:480px; text-align:left; padding:18px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1.5px solid var(--border); padding-bottom:8px;">
+          <div>
+            <h3 style="font-size:16px; font-weight:800; color:var(--foreground); margin:0;">💡 도장 & 보석 획득 인터렉티브 가이드</h3>
+            <p style="font-size:11px; color:var(--muted); margin:2px 0 0 0;">터치하여 상세 방법과 바로가기 버튼을 확인하세요.</p>
+          </div>
           <button class="btn-pill btn-secondary" style="width:auto; padding:3px 8px; font-size:12px;" onclick="closeShopGuideModal()">✕</button>
         </div>
 
-        <div style="display:flex; flex-direction:column; gap:10px; font-size:13px; line-height:1.5;">
-          <div style="background:#fff0f7; padding:12px; border-radius:12px; border:1px solid var(--primary-border);">
-            <strong style="color:var(--primary);">💮 도장 모으는 법</strong>
-            <ul style="margin:4px 0 0 18px; color:var(--foreground); font-size:12px;">
-              <li>성경 본문 <strong>1장 완독 시 도장 1개</strong> 획득</li>
-              <li>매일 <strong>감사제목 나눔 작성 시 도장 +1개</strong> 추가 획득 (하루 1회)</li>
-            </ul>
-          </div>
-
-          <div style="background:#eff6ff; padding:12px; border-radius:12px; border:1px solid #bfdbfe;">
-            <strong style="color:var(--secondary);">💎 보석 모으는 법</strong>
-            <ul style="margin:4px 0 0 18px; color:var(--foreground); font-size:12px;">
-              <li><strong>연속 7일 읽기 달성 시마다 보석 1개</strong> 획득<br>
-                <span style="color:var(--muted); font-size:11px;">(※ 연속일수가 끊겨도 이미 받은 보석은 절대 사라지지 않습니다!)</span>
-              </li>
-              <li><strong>성경 각 권 완독(BT 카드 해금) 시 보석 2개</strong> 즉시 획득</li>
-              <li><strong>도장 10개 ➔ 보석 1개</strong>로 은혜 환전소에서 교환</li>
-            </ul>
-          </div>
-
-          <div style="background:#fefce8; padding:12px; border-radius:12px; border:1px solid #fef08a;">
-            <strong style="color:#b45309;">🎁 보석 사용처</strong>
-            <p style="color:var(--foreground); font-size:12px; margin-top:2px;">
-              모은 보석으로 <strong>달란트 마켓</strong>에서 원하는 기프티콘(간식, 상품권 등)을 교환 신청할 수 있습니다!
-            </p>
-          </div>
+        <!-- 인터렉티브 카테고리 필터 바 -->
+        <div class="guide-filter-bar">
+          <button class="guide-filter-chip active" data-category="all" onclick="filterShopGuide('all', this)">✨ 전체보기</button>
+          <button class="guide-filter-chip" data-category="stamp" onclick="filterShopGuide('stamp', this)">💮 도장 모으기</button>
+          <button class="guide-filter-chip" data-category="gem" onclick="filterShopGuide('gem', this)">💎 보석 모으기</button>
+          <button class="guide-filter-chip" data-category="inquiry" onclick="filterShopGuide('inquiry', this)">💬 문의 보상</button>
+          <button class="guide-filter-chip" data-category="use" onclick="filterShopGuide('use', this)">🎁 보석 사용처</button>
         </div>
 
-        <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:12px;">
-          <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; color:var(--foreground); cursor:pointer; margin-bottom:12px;">
-            <input type="checkbox" id="chk-never-show-shop-guide" style="width:18px; height:18px; accent-color:var(--primary);">
+        <!-- 인터렉티브 가이드 카드 목록 -->
+        <div id="guide-card-container" style="display:flex; flex-direction:column; gap:10px;">
+          
+          <!-- 카드 1: 성경 1장 완독 -->
+          <div class="guide-card" data-category="stamp" onclick="toggleGuideCard(this)">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:22px;">📖</span>
+                <div>
+                  <strong style="font-size:13.5px; color:var(--foreground);">성경 본문 1장 완독</strong>
+                  <span style="font-size:11px; color:var(--muted); display:block;">매일 말씀 읽기 기본 보상</span>
+                </div>
+              </div>
+              <span class="guide-card-badge" style="background:#fff0f7; color:var(--primary); border:1px solid var(--primary-border);">💮 도장 +1개 / 장</span>
+            </div>
+            <p style="font-size:12px; color:var(--foreground); line-height:1.5; margin:4px 0 8px 0;">
+              종이 성경이나 앱으로 매일 분량을 읽고 홈 화면의 통독 진도표에서 터치하면 <strong>도장 1개</strong>가 즉시 적립됩니다!
+            </p>
+            <div style="display:flex; justify-content:flex-end;">
+              <button class="btn-pill btn-secondary" style="width:auto; padding:4px 10px; font-size:11px;" onclick="event.stopPropagation(); closeShopGuideModal(); switchTab('home');">
+                📖 오늘 분량 읽기 ➔
+              </button>
+            </div>
+          </div>
+
+          <!-- 카드 2: 매일 감사제목 나눔 -->
+          <div class="guide-card" data-category="stamp" onclick="toggleGuideCard(this)">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:22px;">💖</span>
+                <div>
+                  <strong style="font-size:13.5px; color:var(--foreground);">매일 감사제목 나눔</strong>
+                  <span style="font-size:11px; color:var(--muted); display:block;">하루 1회 은혜 고백 보상</span>
+                </div>
+              </div>
+              <span class="guide-card-badge" style="background:#fff0f7; color:var(--primary); border:1px solid var(--primary-border);">💮 도장 +1개 / 일</span>
+            </div>
+            <p style="font-size:12px; color:var(--foreground); line-height:1.5; margin:4px 0 8px 0;">
+              하루 1번, 성경을 읽고 느낀 감사제목을 '감사' 탭에 친구들과 나누면 <strong>도장 +1개</strong>가 추가로 쏟아집니다!
+            </p>
+            <div style="display:flex; justify-content:flex-end;">
+              <button class="btn-pill btn-secondary" style="width:auto; padding:4px 10px; font-size:11px;" onclick="event.stopPropagation(); closeShopGuideModal(); switchTab('gratitude');">
+                💖 감사 나누기 ➔
+              </button>
+            </div>
+          </div>
+
+          <!-- 카드 3: 💬 문의게시판 작성 & 마스터 해결 답변 (핵심 신규 추가) -->
+          <div class="guide-card active" data-category="inquiry" onclick="toggleGuideCard(this)" style="background:linear-gradient(135deg, #fffbeb 0%, #ffffff 100%); border:1.5px solid #f59e0b;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:22px;">💬</span>
+                <div>
+                  <strong style="font-size:13.5px; color:#b45309;">문의게시판 작성 & 해결 답변</strong>
+                  <span style="font-size:11px; color:#92400e; display:block;">앱 발전 기여 특별 감사 보상 ✨</span>
+                </div>
+              </div>
+              <span class="guide-card-badge" style="background:#fef3c7; color:#b45309; border:1px solid #fde68a;">💮 2~3개 or 💎 1~2개</span>
+            </div>
+            <p style="font-size:12px; color:var(--foreground); line-height:1.5; margin:4px 0 6px 0;">
+              앱 사용 중 불편한 점, 화면 오류(버그) 제보, 개선 건의를 <strong>문의게시판</strong>에 남겨주세요! 마스터 관리자가 확인하고 <strong>해결 안내 답변</strong>을 남기면, 소중한 피드백에 대한 감사로 <strong>도장 2~3개 또는 보석 1~2개</strong>를 지급해 드립니다!
+            </p>
+            <div style="background:rgba(255,255,255,0.85); border:1px dashed #fcd34d; border-radius:10px; padding:6px 10px; margin-bottom:8px; font-size:11px; color:#92400e;">
+              🔍 <strong>내역 확인:</strong> 지급된 보상은 상점 탭의 '내 도장 🔍' / '내 보석 🔍'을 터치하면 상세 원장 내역에서 투명하게 확인하실 수 있습니다.
+            </div>
+            <div style="display:flex; justify-content:flex-end;">
+              <button class="btn-pill" style="width:auto; padding:4px 12px; font-size:11px; font-weight:800; background:#f59e0b; color:#ffffff;" onclick="event.stopPropagation(); closeShopGuideModal(); switchTab('inquiry');">
+                💬 문의게시판 바로가기 ➔
+              </button>
+            </div>
+          </div>
+
+          <!-- 카드 4: 연속 7일 읽기 달성 -->
+          <div class="guide-card" data-category="gem" onclick="toggleGuideCard(this)">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:22px;">🔥</span>
+                <div>
+                  <strong style="font-size:13.5px; color:var(--foreground);">연속 7일 읽기 달성 (스트릭)</strong>
+                  <span style="font-size:11px; color:var(--muted); display:block;">꾸준한 습관 선물</span>
+                </div>
+              </div>
+              <span class="guide-card-badge" style="background:#eff6ff; color:var(--secondary); border:1px solid #bfdbfe;">💎 보석 +1개</span>
+            </div>
+            <p style="font-size:12px; color:var(--foreground); line-height:1.5; margin:4px 0 4px 0;">
+              연속으로 7일 동안 매일 성경을 읽을 때마다 영롱한 <strong>보석 1개</strong>를 획득합니다!<br>
+              <span style="color:var(--muted); font-size:11px;">(※ 혹시 연속일수가 끊기더라도 이미 획득한 보석은 절대 사라지지 않으니 안심하세요!)</span>
+            </p>
+          </div>
+
+          <!-- 카드 5: 성경 각 권 완독 (BT 카드 해금) -->
+          <div class="guide-card" data-category="gem" onclick="toggleGuideCard(this)">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:22px;">📜</span>
+                <div>
+                  <strong style="font-size:13.5px; color:var(--foreground);">성경 66권 각 권 완독 (BT 카드 해금)</strong>
+                  <span style="font-size:11px; color:var(--muted); display:block;">대단원의 책 완주 축하</span>
+                </div>
+              </div>
+              <span class="guide-card-badge" style="background:#eff6ff; color:var(--secondary); border:1px solid #bfdbfe;">💎 보석 +2개</span>
+            </div>
+            <p style="font-size:12px; color:var(--foreground); line-height:1.5; margin:4px 0 8px 0;">
+              창세기, 마태복음 등 성경 한 권을 끝까지 완독할 때마다 멋진 포켓몬 스타일 수집형 BT 카드 해금과 함께 <strong>보석 2개</strong>가 즉시 지급됩니다!
+            </p>
+            <div style="display:flex; justify-content:flex-end;">
+              <button class="btn-pill btn-secondary" style="width:auto; padding:4px 10px; font-size:11px;" onclick="event.stopPropagation(); closeShopGuideModal(); switchTab('dex');">
+                🃏 BT 도감 확인 ➔
+              </button>
+            </div>
+          </div>
+
+          <!-- 카드 6: 은혜 환전소 (도장 10개 ➔ 보석 1개) -->
+          <div class="guide-card" data-category="gem" onclick="toggleGuideCard(this)">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:22px;">🏦</span>
+                <div>
+                  <strong style="font-size:13.5px; color:var(--foreground);">은혜 환전소 (도장 교환)</strong>
+                  <span style="font-size:11px; color:var(--muted); display:block;">도장을 보석으로 변환</span>
+                </div>
+              </div>
+              <span class="guide-card-badge" style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;">10 💮 = 1 💎</span>
+            </div>
+            <p style="font-size:12px; color:var(--foreground); line-height:1.5; margin:4px 0 8px 0;">
+              성경 읽기와 감사로 차곡차곡 모은 도장 10개를 상점의 은혜 환전소에서 영롱한 <strong>보석 1개</strong>로 바로 환전할 수 있습니다!
+            </p>
+            <div style="display:flex; justify-content:flex-end;">
+              <button class="btn-pill btn-secondary" style="width:auto; padding:4px 10px; font-size:11px;" onclick="event.stopPropagation(); closeShopGuideModal(); document.getElementById('input-exchange-gems').focus();">
+                🏦 바로 환전하기 ➔
+              </button>
+            </div>
+          </div>
+
+          <!-- 카드 7: 달란트 마켓 기프티콘 교환 -->
+          <div class="guide-card" data-category="use" onclick="toggleGuideCard(this)">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:22px;">🎁</span>
+                <div>
+                  <strong style="font-size:13.5px; color:var(--foreground);">달란트 마켓 기프티콘 교환</strong>
+                  <span style="font-size:11px; color:var(--muted); display:block;">보석 사용처</span>
+                </div>
+              </div>
+              <span class="guide-card-badge" style="background:#fefce8; color:#b45309; border:1px solid #fef08a;">🎁 간식 & 선물</span>
+            </div>
+            <p style="font-size:12px; color:var(--foreground); line-height:1.5; margin:4px 0 8px 0;">
+              모은 보석으로 달란트 마켓에서 아이스크림, 편의점 쿠폰, 문화상품권 등 맛있는 기프티콘을 교환 신청할 수 있습니다!
+            </p>
+            <div style="display:flex; justify-content:flex-end;">
+              <button class="btn-pill btn-secondary" style="width:auto; padding:4px 10px; font-size:11px;" onclick="event.stopPropagation(); closeShopGuideModal(); document.getElementById('market-item-list').scrollIntoView({behavior:'smooth'});">
+                🛍️ 마켓 상품 둘러보기 ➔
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 💡 주간 획득 전략 꿀팁 박스 -->
+        <div style="background:#f8fafc; border:1.5px dashed var(--border); border-radius:12px; padding:10px 12px; margin-top:14px; font-size:11.5px; line-height:1.5; color:var(--muted);">
+          <strong style="color:var(--foreground);">💡 주간 보석 모으기 공식:</strong><br>
+          매일 1장 통독(💮7) + 감사 나눔(💮7) = <strong>매주 도장 14개!</strong> 여기에 7일 연속 보석(💎1) + 도장 10개 환전(💎1)으로 <strong>매주 보석 최소 2개 확보!</strong> 문의글 해결 보상까지 챙기면 더욱 빠르게 모을 수 있습니다.
+        </div>
+
+        <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:12px; display:flex; justify-content:space-between; align-items:center;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color:var(--foreground); cursor:pointer;">
+            <input type="checkbox" id="chk-never-show-shop-guide" style="width:16px; height:16px; accent-color:var(--primary);">
             다시 보지 않기
           </label>
-          <button class="btn-pill" onclick="closeShopGuideModal()">확인</button>
+          <button class="btn-pill" style="width:auto; padding:6px 20px;" onclick="closeShopGuideModal()">확인</button>
         </div>
       </div>
     </div>

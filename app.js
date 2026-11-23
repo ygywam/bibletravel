@@ -1516,6 +1516,7 @@
     else if (viewId === "shop") loadShopView();
     else if (viewId === "inquiry") loadInquiryBoard();
     else if (viewId === "teacher") loadTeacherDashboard();
+    else if (viewId === "onboarding" && typeof setOnboardStep === "function") setOnboardStep(0);
   }
 
   // 🛍️ 상점 탭 렌더링
@@ -2349,6 +2350,7 @@
     if (modal) {
       modal.classList.add("active");
       modal.style.display = "flex";
+      if (typeof filterShopGuide === "function") filterShopGuide("all");
     }
   }
 
@@ -4490,9 +4492,185 @@
     });
   }
 
+  // ==========================================
+  // 💡 인터렉티브 상점 획득 가이드 및 온보딩 제어
+  // ==========================================
+
+  // 1. 상점 획득 가이드 카테고리 필터링
+  function filterShopGuide(category, btnEl) {
+    var chips = document.querySelectorAll(".guide-filter-chip");
+    chips.forEach(function(c) { c.classList.remove("active"); });
+    if (btnEl) {
+      btnEl.classList.add("active");
+    } else {
+      var defaultChip = document.querySelector('.guide-filter-chip[data-category="' + category + '"]');
+      if (defaultChip) defaultChip.classList.add("active");
+    }
+
+    var cards = document.querySelectorAll(".guide-card");
+    cards.forEach(function(card) {
+      var cat = card.getAttribute("data-category");
+      if (category === "all" || cat === category) {
+        card.style.display = "block";
+      } else {
+        card.style.display = "none";
+      }
+    });
+  }
+
+  // 2. 상점 가이드 카드 클릭 시 토글/강조 효과
+  function toggleGuideCard(cardEl) {
+    if (!cardEl) return;
+    var wasActive = cardEl.classList.contains("active");
+    document.querySelectorAll(".guide-card").forEach(function(c) { c.classList.remove("active"); });
+    if (!wasActive) {
+      cardEl.classList.add("active");
+    }
+  }
+
+  // 3. 온보딩 단계 네비게이션 제어
+  var currentOnboardStep = 0;
+  var totalOnboardSteps = 4;
+
+  function setOnboardStep(stepIndex) {
+    currentOnboardStep = Math.max(0, Math.min(stepIndex, totalOnboardSteps - 1));
+
+    // 버튼 활성화
+    var stepBtns = document.querySelectorAll(".onboard-step-btn");
+    stepBtns.forEach(function(btn, idx) {
+      if (idx === currentOnboardStep) btn.classList.add("active");
+      else btn.classList.remove("active");
+    });
+
+    // 카드 슬라이드 활성화
+    var stepCards = document.querySelectorAll(".onboard-step-card");
+    stepCards.forEach(function(card, idx) {
+      if (idx === currentOnboardStep) card.classList.add("active");
+      else card.classList.remove("active");
+    });
+
+    // 인디케이터 & 닷 업데이트
+    var indEl = document.getElementById("onboard-step-indicator");
+    if (indEl) indEl.textContent = (currentOnboardStep + 1) + " / " + totalOnboardSteps + " 단계";
+
+    var dots = document.querySelectorAll(".onboard-dot");
+    dots.forEach(function(dot, idx) {
+      if (idx === currentOnboardStep) {
+        dot.style.background = "var(--primary)";
+        dot.style.width = "18px";
+      } else {
+        dot.style.background = "var(--border)";
+        dot.style.width = "8px";
+      }
+    });
+  }
+
+  function moveOnboardStep(dir) {
+    var next = currentOnboardStep + dir;
+    if (next < 0) next = 0;
+    if (next >= totalOnboardSteps) next = totalOnboardSteps - 1;
+    setOnboardStep(next);
+  }
+
+  // 4. 온보딩 인터렉티브 체험: 아바타 1칸 전진 시뮬레이션
+  var simulatedMapStep = 1;
+  function simulateWalkOnboard() {
+    simulatedMapStep++;
+    if (simulatedMapStep > 4) simulatedMapStep = 1;
+
+    var avatar = document.getElementById("mini-onboard-avatar");
+    var label = document.getElementById("mini-onboard-label");
+    var progress = document.getElementById("mini-onboard-progress");
+
+    var positions = [10, 80, 150, 220];
+    var texts = [
+      "창세기 1장 완독! 아바타가 첫걸음을 내딛었어요! 🏃‍♂️",
+      "창세기 2장 완독! 오솔길 언덕을 힘차게 오릅니다! 🌲",
+      "창세기 3장 완독! 도장 3개 획득 완료! 💮",
+      "모세오경 맵 체크포인트 도달! 축하합니다! 🚩✨"
+    ];
+
+    if (avatar) {
+      avatar.style.transform = "translateX(" + positions[simulatedMapStep - 1] + "px) scale(1.15)";
+      setTimeout(function() {
+        avatar.style.transform = "translateX(" + positions[simulatedMapStep - 1] + "px) scale(1.0)";
+      }, 250);
+    }
+    if (label) label.textContent = texts[simulatedMapStep - 1];
+    if (progress) progress.textContent = simulatedMapStep + " / 4 장 완료";
+  }
+
+  // 5. 온보딩 가상 지갑 시뮬레이션
+  var simStamps = 0;
+  var simGems = 0;
+  function simulateRewardOnboard(type) {
+    var stampEl = document.getElementById("sim-wallet-stamps");
+    var gemEl = document.getElementById("sim-wallet-gems");
+    var bubbleEl = document.getElementById("sim-reward-bubble");
+
+    if (type === "bible") {
+      simStamps += 1;
+      if (bubbleEl) bubbleEl.innerHTML = "💮 성경 1장 완독 체크! <strong>도장 +1개</strong> 획득!";
+    } else if (type === "gratitude") {
+      simStamps += 1;
+      if (bubbleEl) bubbleEl.innerHTML = "💖 감사제목 작성 완료! <strong>도장 +1개</strong> 추가 획득!";
+    } else if (type === "inquiry") {
+      simStamps += 2;
+      simGems += 1;
+      if (bubbleEl) bubbleEl.innerHTML = "💬 문의글에 마스터 답변 등록! <strong>도장 +2개 & 보석 +1개</strong> 지급!";
+    } else if (type === "streak") {
+      simGems += 1;
+      if (bubbleEl) bubbleEl.innerHTML = "🔥 7일 연속 읽기 달성! 영롱한 <strong>보석 +1개</strong> 획득!";
+    } else if (type === "exchange") {
+      if (simStamps >= 10) {
+        simStamps -= 10;
+        simGems += 1;
+        if (bubbleEl) bubbleEl.innerHTML = "🏦 은혜 환전소 성공! 도장 10개 ➔ <strong>보석 1개</strong> 교환!";
+      } else {
+        if (bubbleEl) bubbleEl.innerHTML = "⚠️ 환전하려면 도장이 최소 10개 필요해요! (현재: " + simStamps + "개)";
+      }
+    }
+
+    if (stampEl) {
+      stampEl.textContent = simStamps + "개";
+      stampEl.style.transform = "scale(1.25)";
+      setTimeout(function() { stampEl.style.transform = "scale(1)"; }, 200);
+    }
+    if (gemEl) {
+      gemEl.textContent = simGems + "개";
+      gemEl.style.transform = "scale(1.25)";
+      setTimeout(function() { gemEl.style.transform = "scale(1)"; }, 200);
+    }
+  }
+
+  // 6. 온보딩 3D 홀로그램 카드 뒤집기
+  var isCardFlipped = false;
+  function flipHologramCard() {
+    var front = document.getElementById("holo-card-front");
+    var back = document.getElementById("holo-card-back");
+    isCardFlipped = !isCardFlipped;
+
+    if (front && back) {
+      if (isCardFlipped) {
+        front.style.display = "none";
+        back.style.display = "flex";
+      } else {
+        front.style.display = "flex";
+        back.style.display = "none";
+      }
+    }
+  }
+
   window.loadInquiryBoard = loadInquiryBoard;
   window.onSubmitInquiry = onSubmitInquiry;
   window.onRewardInquiry = onRewardInquiry;
   window.onDeleteInquiry = onDeleteInquiry;
   window.openMasterPinPrompt = openMasterPinPrompt;
   window.onElevateToMaster = onElevateToMaster;
+  window.filterShopGuide = filterShopGuide;
+  window.toggleGuideCard = toggleGuideCard;
+  window.setOnboardStep = setOnboardStep;
+  window.moveOnboardStep = moveOnboardStep;
+  window.simulateWalkOnboard = simulateWalkOnboard;
+  window.simulateRewardOnboard = simulateRewardOnboard;
+  window.flipHologramCard = flipHologramCard;

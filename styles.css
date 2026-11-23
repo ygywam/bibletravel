@@ -876,3 +876,238 @@ body {
   padding: 2px 8px;
   border-radius: 8px;
 }
+
+/* ==========================================
+ * 인터렉티브 가이드 & 온보딩 전용 스타일 (Light Mode)
+ * ========================================== */
+
+/* 상점 탭 상단 가이드 배너 */
+.shop-guide-banner {
+  background: linear-gradient(135deg, #fffbeb 0%, #ffffff 100%);
+  border: 1.5px solid #fde68a;
+  border-radius: 16px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.08);
+}
+.shop-guide-banner:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(245, 158, 11, 0.15);
+  border-color: #f59e0b;
+}
+
+/* 상점 획득 가이드 모달 인터렉티브 필터 탭 */
+.guide-filter-bar {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+  scrollbar-width: none;
+}
+.guide-filter-bar::-webkit-scrollbar {
+  display: none;
+}
+.guide-filter-chip {
+  padding: 5px 11px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 800;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.guide-filter-chip.active {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+  box-shadow: 0 2px 8px rgba(255, 102, 175, 0.3);
+}
+
+/* 상점 획득 가이드 개별 카드 */
+.guide-card {
+  border-radius: 14px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+.guide-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+}
+.guide-card.active {
+  border-color: var(--primary);
+  box-shadow: 0 4px 14px rgba(255, 102, 175, 0.18);
+}
+.guide-card-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 8px;
+  display: inline-block;
+}
+
+/* 온보딩 인터렉티브 단계 네비게이션 */
+.onboard-step-nav {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 4px 2px;
+}
+.onboard-step-nav::-webkit-scrollbar {
+  display: none;
+}
+.onboard-step-btn {
+  flex: 1;
+  min-width: 100px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  border: 1.5px solid var(--border);
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: center;
+}
+.onboard-step-btn:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+.onboard-step-btn.active {
+  border-color: var(--primary);
+  background: linear-gradient(135deg, #fff0f7 0%, #ffffff 100%);
+  color: var(--primary);
+  box-shadow: 0 4px 12px rgba(255, 102, 175, 0.15);
+  transform: translateY(-2px);
+}
+
+/* 온보딩 단계 카드 슬라이드 */
+.onboard-step-card {
+  display: none;
+  animation: onboardFadeSlide 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.onboard-step-card.active {
+  display: block;
+}
+@keyframes onboardFadeSlide {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 인터렉티브 미니 맵 트레일 (Step 1) */
+.mini-map-track {
+  background: #f0fdf4;
+  border: 1.5px dashed #86efac;
+  border-radius: 16px;
+  padding: 14px 12px;
+  position: relative;
+  overflow: hidden;
+  margin: 12px 0;
+}
+.mini-avatar-walker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: #ffffff;
+  border: 2px solid #10b981;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+  font-size: 20px;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 인터렉티브 보상 테스트 칩 (Step 2) */
+.onboard-reward-chip {
+  background: #ffffff;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+.onboard-reward-chip:hover {
+  border-color: var(--primary);
+  background: #fff0f7;
+  transform: translateX(3px);
+}
+.onboard-reward-chip:active {
+  transform: scale(0.97);
+}
+
+/* 3D 홀로그램 BT 카드 미리보기 (Step 3) */
+.hologram-preview-box {
+  perspective: 1000px;
+  display: flex;
+  justify-content: center;
+  margin: 14px 0;
+}
+.hologram-card-inner {
+  width: 140px;
+  height: 190px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 30%, #bfdbfe 70%, #fbcfe8 100%);
+  border: 2px solid #f59e0b;
+  box-shadow: 0 8px 24px rgba(245, 158, 11, 0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  cursor: pointer;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+.hologram-card-inner:hover {
+  transform: rotateY(15deg) rotateX(10deg) scale(1.04);
+  box-shadow: 0 14px 32px rgba(245, 158, 11, 0.35);
+}
+.hologram-card-inner::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(60deg, transparent 40%, rgba(255, 255, 255, 0.5) 50%, transparent 60%);
+  transform: rotate(25deg);
+  pointer-events: none;
+  animation: cardShine 3s infinite linear;
+}
+@keyframes cardShine {
+  0% { transform: translate(-30%, -30%) rotate(25deg); }
+  100% { transform: translate(30%, 30%) rotate(25deg); }
+}
