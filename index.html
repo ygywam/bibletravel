@@ -460,16 +460,16 @@
 
         <!-- 💡 인터렉티브 획득 방법 안내 배너 -->
         <div class="shop-guide-banner" onclick="openShopGuideModal()">
-          <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-size:26px;">💡</span>
-            <div>
-              <strong style="font-size:13.5px; color:var(--foreground);">도장 & 보석을 모으는 6가지 방법!</strong>
-              <p style="font-size:11px; color:var(--muted); margin:2px 0 0 0;">
-                성경 완독, 감사 나눔부터 <span style="color:#d97706; font-weight:800;">💬 문의 해결 보상</span>까지 인터렉티브 카드로 확인해보세요 ➔
+          <div class="shop-guide-banner-content">
+            <span style="font-size:24px; flex-shrink:0;">💡</span>
+            <div class="shop-guide-banner-text">
+              <strong style="font-size:13px; color:var(--foreground); display:block; word-break:keep-all;">도장 & 보석을 모으는 6가지 방법!</strong>
+              <p style="font-size:11px; color:var(--muted); margin:2px 0 0 0; line-height:1.4; word-break:keep-all;">
+                성경 완독, 감사 나눔부터 <span style="color:#d97706; font-weight:800;">💬 문의 해결 보상</span>까지 인터렉티브 카드로 확인 ➔
               </p>
             </div>
           </div>
-          <span class="btn-pill btn-secondary" style="font-size:11px; padding:4px 10px; flex-shrink:0;">가이드 보기</span>
+          <button class="btn-pill btn-secondary shop-guide-banner-btn">가이드 보기</button>
         </div>
 
         <!-- 1. 은혜 환전소 (원장 기반 다중 교환 및 내역 조회) -->
