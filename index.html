@@ -359,6 +359,11 @@
             <div>
               <span id="teacher-panel-role-title" style="font-size:14px; font-weight:800; color:var(--primary);">👩‍🏫 관리자 모드 활성화됨</span>
               <p id="teacher-panel-role-desc" style="font-size:12px; color:var(--muted); margin-top:2px;">학생 관리 및 마켓 상품 관리 권한이 활성화되었습니다.</p>
+              <div id="teacher-elevate-box" style="display:none; margin-top:8px; padding-top:6px; border-top:1px dashed var(--primary-border); align-items:center; gap:8px;">
+                <span style="font-size:12px; font-weight:800; color:var(--primary);">👑 마스터 PIN:</span>
+                <input type="password" id="elevate-master-pin-input" placeholder="7777" maxlength="4" style="width:80px; padding:4px 6px; border:1px solid var(--border); border-radius:8px; font-size:12px; outline:none; text-align:center;">
+                <button class="btn-pill" style="width:auto; padding:4px 10px; font-size:11px; background:var(--primary);" onclick="onElevateToMaster()">마스터 권한 승격</button>
+              </div>
             </div>
             <button class="btn-pill btn-secondary" style="width:auto; padding:6px 14px; font-size:12px;" onclick="onTeacherLogout()">🚪 관리자 로그아웃</button>
           </div>
@@ -584,6 +589,21 @@
           <button class="btn-pill btn-secondary" style="width:auto; padding:3px 8px; font-size:12px;" onclick="closeStudentSelectModal()">✕ 닫기</button>
         </div>
         <p style="font-size:12px; color:var(--muted); margin-bottom:12px;">성경읽기에 참여할 본인의 이름을 선택하세요.</p>
+        
+        <!-- 👑 마스터 관리자 즉시 로그인 배너 -->
+        <div style="background:linear-gradient(135deg, #fffbeb 0%, #ffffff 100%); border:1.5px solid #f59e0b; border-radius:14px; padding:10px 14px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:22px;">👑</span>
+            <div>
+              <strong style="font-size:13px; color:#b45309;">마스터 총괄 관리자</strong>
+              <p style="font-size:11px; color:#92400e; margin:1px 0 0 0;">전용 PIN 번호로 관리자 모드 즉시 접속</p>
+            </div>
+          </div>
+          <button class="btn-pill" style="width:auto; padding:6px 12px; font-size:12px; background:#f59e0b; color:#ffffff; font-weight:800;" onclick="openMasterPinPrompt()">
+            👑 마스터 로그인
+          </button>
+        </div>
+
         <div id="student-select-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(82px, 1fr)); gap:8px;">
           <!-- JS 렌더링 -->
         </div>
