@@ -601,17 +601,11 @@
         </div>
 
         <div id="teacher-panel" style="display:none;">
-          <div class="card" style="display:flex; justify-content:space-between; align-items:center; background:var(--primary-light); border:1.5px solid var(--primary-border); margin-bottom:16px;">
+          <div class="card" style="background:var(--primary-light); border:1.5px solid var(--primary-border); margin-bottom:16px;">
             <div>
               <span id="teacher-panel-role-title" style="font-size:14px; font-weight:800; color:var(--primary);">👩‍🏫 관리자 모드 활성화됨</span>
-              <p id="teacher-panel-role-desc" style="font-size:12px; color:var(--muted); margin-top:2px;">학생 관리 및 마켓 상품 관리 권한이 활성화되었습니다.</p>
-              <div id="teacher-elevate-box" style="display:none; margin-top:8px; padding-top:6px; border-top:1px dashed var(--primary-border); align-items:center; gap:8px;">
-                <span style="font-size:12px; font-weight:800; color:var(--primary);">👑 마스터 PIN:</span>
-                <input type="password" id="elevate-master-pin-input" placeholder="7777" maxlength="4" style="width:80px; padding:4px 6px; border:1px solid var(--border); border-radius:8px; font-size:12px; outline:none; text-align:center;">
-                <button class="btn-pill" style="width:auto; padding:4px 10px; font-size:11px; background:var(--primary);" onclick="onElevateToMaster()">마스터 권한 승격</button>
-              </div>
+              <p id="teacher-panel-role-desc" style="font-size:12px; color:var(--muted); margin-top:2px; margin-bottom:0;">교사 권한: 신규 학생/교사 등록 및 칭찬 도장 선물 권한이 활성화되었습니다.</p>
             </div>
-            <button class="btn-pill btn-secondary" style="width:auto; padding:6px 14px; font-size:12px;" onclick="onTeacherLogout()">🚪 관리자 로그아웃</button>
           </div>
 
           <div class="card">
@@ -634,10 +628,10 @@
             <button class="btn-pill" style="width:100%; font-size:14px; padding:12px; background:#f59e0b;" onclick="openPraiseStampModal()">⭐ 학생 선택하여 칭찬 도장 선물하기 ➔</button>
           </div>
 
-          <!-- 🛍️ 달란트 마켓 상품 관리 카드 -->
-          <div class="card" style="border:1.5px solid var(--secondary);">
+          <!-- 🛍️ 달란트 마켓 상품 관리 카드 (마스터 전용) -->
+          <div class="card" id="market-product-master-setting" style="display:none; border:1.5px solid var(--secondary);">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-              <h3 style="font-size:16px; font-weight:800; color:var(--secondary); margin:0;">🛍️ 달란트 마켓 상품 게시판 관리</h3>
+              <h3 style="font-size:16px; font-weight:800; color:var(--secondary); margin:0;">🛍️ 달란트 마켓 상품 게시판 관리 (Master)</h3>
               <button class="btn-pill" style="width:auto; padding:5px 12px; font-size:12px; background:var(--secondary);" onclick="openMarketAdminModal()">➕ 새 상품 등록</button>
             </div>
             <p style="font-size:12px; color:var(--muted); margin-bottom:12px;">학생 상점 탭에 노출될 교환 상품(이름, 이미지, 보석 가격)을 자유롭게 게시판 형태로 올려주세요.</p>
@@ -646,7 +640,8 @@
             </div>
           </div>
           
-          <div class="card" id="recommended-books-setting" style="border: 1.5px solid var(--primary);">
+          <!-- 📖 하루 3장 추천 성경책 선택 (마스터 전용) -->
+          <div class="card" id="recommended-books-setting" style="display:none; border: 1.5px solid var(--primary);">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
               <h3 style="font-size:16px; margin:0; color:var(--primary);">📖 하루 3장 추천 성경책 선택 (66권)</h3>
               <span id="rec-books-count-badge" class="badge badge-pink" style="font-size:12px;">선택: 66 / 66권</span>

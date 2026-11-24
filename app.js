@@ -104,12 +104,10 @@
     return false;
   }
 
-  // 👑 마스터 총괄 관리자 권한 판별 유틸리티 (교사와 엄격히 분리: 7777 PIN 또는 조용희 안수집사 전용)
+  // 👑 마스터 총괄 관리자 권한 판별 유틸리티 (오직 PIN 7777 인증 시에만 활성화)
   function isUserMaster(token) {
     if (state.isMasterAdmin === true) return true;
-    if (state.student && state.student.name === "조용희") return true;
-    if (sessionStorage.getItem("bt_is_master_admin") === "true") return true;
-    if (token && (String(token).startsWith("MASTER_TOKEN_") || token === "TEACHER_TOKEN_MASTER")) return true;
+    if (token && String(token).startsWith("MASTER_TOKEN_")) return true;
     return false;
   }
 
@@ -470,7 +468,7 @@
           return { success: true, token: tToken, teacherToken: tToken, isTeacher: true, isMasterAdmin: true, role: 'MASTER' };
         }
 
-        // 2) 교사 개인 PIN 확인 (travel_students 테이블에서 department='교사' 조회)
+        // 2) 교사 개인 PIN 확인 (travel_students 테이블에서 department='교사' 조회 - 교사는 절대 마스터가 아님)
         try {
           const { data: teacher } = await sb.from('travel_students')
             .select('student_id, name, department, pin')
@@ -479,16 +477,15 @@
             .maybeSingle();
 
           if (teacher) {
-            const isMaster = (teacher.name === "조용희");
-            const tToken = isMaster ? `MASTER_TOKEN_${Date.now()}` : `TEACHER_TOKEN_${teacher.student_id}_${Date.now()}`;
+            const tToken = `TEACHER_TOKEN_${teacher.student_id}_${Date.now()}`;
             return {
               success: true,
               token: tToken,
               teacherToken: tToken,
               isTeacher: true,
-              isMasterAdmin: isMaster,
+              isMasterAdmin: false, // 🚨 교사는 절대 마스터가 아님!
               teacherName: teacher.name,
-              role: isMaster ? 'MASTER' : 'TEACHER'
+              role: 'TEACHER'
             };
           }
         } catch (e) {}
@@ -509,7 +506,7 @@
       if (funcName === "saveRecommendedBooks") {
         const teacherToken = args[0];
         const selectedIds = args[1] || [];
-        if (!isUserTeacher(teacherToken)) return { success: false, error: "관리자(교사) 권한이 필요합니다." };
+        if (!isUserMaster(teacherToken)) return { success: false, error: "👑 마스터 관리자만 추천 성경을 설정할 수 있습니다." };
         await sb.from('travel_settings').upsert({ key: 'RECOMMENDED_BOOKS', value: selectedIds.join(',') });
         return { success: true, recommendedBooks: selectedIds };
       }
@@ -858,7 +855,7 @@
       if (funcName === "saveMarketProduct") {
         const teacherToken = args[0];
         const product = args[1];
-        if (!isUserTeacher(teacherToken)) return { success: false, error: "관리자(교사) 권한이 필요합니다." };
+        if (!isUserMaster(teacherToken)) return { success: false, error: "👑 마스터 관리자만 상품을 등록/수정할 수 있습니다." };
         if (!product || !product.name) return { success: false, error: "상품 정보를 확인해 주세요." };
 
         const { data } = await sb.from('travel_settings').select('value').eq('key', 'MARKET_PRODUCTS').single();
@@ -893,7 +890,7 @@
       if (funcName === "deleteMarketProduct") {
         const teacherToken = args[0];
         const productId = args[1];
-        if (!isUserTeacher(teacherToken)) return { success: false, error: "관리자(교사) 권한이 필요합니다." };
+        if (!isUserMaster(teacherToken)) return { success: false, error: "👑 마스터 관리자만 상품을 삭제할 수 있습니다." };
 
         const { data } = await sb.from('travel_settings').select('value').eq('key', 'MARKET_PRODUCTS').single();
         let products = [];
@@ -1272,28 +1269,23 @@
         state.student = JSON.parse(savedStudent);
         if (state.student && String(state.student.department).indexOf("교사") !== -1) {
           state.isTeacher = true;
-          // 🚨 조용희 안수집사만 자동 마스터! 다른 교사는 오직 세션스토리지에 유효한 마스터 플래그가 있을 때만!
-          if (state.student.name === "조용희" || savedIsMaster) {
-            state.isMasterAdmin = true;
-            state.teacherToken = savedTeacherToken || ("TEACHER_TOKEN_" + state.student.studentId);
-            sessionStorage.setItem("bt_is_master_admin", "true");
-          } else {
-            state.isMasterAdmin = false;
-            state.teacherToken = savedTeacherToken || ("TEACHER_TOKEN_" + state.student.studentId);
-            sessionStorage.removeItem("bt_is_master_admin");
-            localStorage.removeItem("bt_is_master_admin");
-          }
+          state.isMasterAdmin = false; // 🚨 교사는 절대 마스터가 아님! (조용희 포함)
+          state.teacherToken = savedTeacherToken || ("TEACHER_TOKEN_" + state.student.studentId);
+          sessionStorage.removeItem("bt_is_master_admin");
+          localStorage.removeItem("bt_is_master_admin");
         } else {
           state.isTeacher = false;
           state.isMasterAdmin = false;
+          state.teacherToken = null;
           sessionStorage.removeItem("bt_is_master_admin");
           localStorage.removeItem("bt_is_master_admin");
         }
         updateUserHeader();
       } else if (savedIsMaster) {
+        state.student = null;
         state.isTeacher = true;
         state.isMasterAdmin = true;
-        state.teacherToken = savedTeacherToken || "TEACHER_TOKEN_MASTER";
+        state.teacherToken = savedTeacherToken || "MASTER_TOKEN_RESTORED";
         updateUserHeader();
       } else {
         state.isTeacher = false;
@@ -2742,6 +2734,17 @@
       if (emoEl) emoEl.textContent = state.student.displayEmoji || "🦁";
       if (nameEl) nameEl.textContent = state.student.name;
       if (locEl) locEl.textContent = "📖 Day " + getGlobalDayIndex();
+    } else if (state.isMasterAdmin) {
+      if (selectBtn) selectBtn.style.display = "none";
+      if (profileBadge) profileBadge.style.display = "flex";
+
+      var emoEl = document.getElementById("user-display-emoji");
+      var nameEl = document.getElementById("user-display-name");
+      var locEl = document.getElementById("user-reading-location");
+
+      if (emoEl) emoEl.textContent = "👑";
+      if (nameEl) nameEl.textContent = "마스터";
+      if (locEl) locEl.textContent = "총괄";
     } else {
       if (selectBtn) selectBtn.style.display = "inline-block";
       if (profileBadge) profileBadge.style.display = "none";
@@ -2764,11 +2767,22 @@
     state.teacherToken = null;
     sessionStorage.removeItem("bt_is_master_admin");
     sessionStorage.removeItem("bt_teacher_token");
+    localStorage.removeItem("bt_is_master_admin");
+    localStorage.removeItem("bt_teacher_token");
     state.fixedDailyMission = null; // 고정값 리셋
     localStorage.removeItem("bt_session_token");
     localStorage.removeItem("bt_student_data");
+
+    var authBox = document.getElementById("teacher-auth-box");
+    var panel = document.getElementById("teacher-panel");
+    var adminTools = document.getElementById("admin-map-tools");
+    if (authBox) authBox.style.display = "block";
+    if (panel) panel.style.display = "none";
+    if (adminTools) adminTools.style.display = "none";
+
     showToast("로그아웃 되었습니다.");
     updateUserHeader();
+    loadCardDex();
     switchTab("onboarding");
   }
 
@@ -2935,24 +2949,20 @@
 
       if (res.student && String(res.student.department).indexOf("교사") !== -1) {
         state.isTeacher = true;
+        state.isMasterAdmin = false; // 🚨 교사는 절대 마스터가 아님! (조용희 포함)
         state.teacherToken = "TEACHER_TOKEN_" + res.student.studentId;
-        // 🚨 조용희 안수집사이거나 마스터 PIN(7777)으로 로그인한 경우만 마스터 관리자 승격!
-        if (res.student.name === "조용희" || pin === "7777") {
-          state.isMasterAdmin = true;
-          sessionStorage.setItem("bt_is_master_admin", "true");
-          sessionStorage.setItem("bt_teacher_token", state.teacherToken);
-          localStorage.setItem("bt_is_master_admin", "true");
-          localStorage.setItem("bt_teacher_token", state.teacherToken);
-        } else {
-          state.isMasterAdmin = false;
-          sessionStorage.removeItem("bt_is_master_admin");
-          localStorage.removeItem("bt_is_master_admin");
-        }
+        sessionStorage.removeItem("bt_is_master_admin");
+        localStorage.removeItem("bt_is_master_admin");
+        sessionStorage.setItem("bt_teacher_token", state.teacherToken);
+        localStorage.setItem("bt_teacher_token", state.teacherToken);
       } else {
         state.isTeacher = false;
         state.isMasterAdmin = false;
+        state.teacherToken = null;
         sessionStorage.removeItem("bt_is_master_admin");
         localStorage.removeItem("bt_is_master_admin");
+        sessionStorage.removeItem("bt_teacher_token");
+        localStorage.removeItem("bt_teacher_token");
       }
       
       localStorage.setItem("bt_session_token", res.sessionToken);
@@ -2994,6 +3004,10 @@
       state.teacherToken = res.token;
 
       if (state.isMasterAdmin) {
+        state.student = null;
+        state.sessionToken = null;
+        localStorage.removeItem("bt_session_token");
+        localStorage.removeItem("bt_student_data");
         sessionStorage.setItem("bt_is_master_admin", "true");
         localStorage.setItem("bt_is_master_admin", "true");
         showToast("👑 마스터 총괄 관리자 인증 성공! (도감 전량 해금 및 마스터 권한 활성화)");
@@ -3206,6 +3220,8 @@
   function loadTeacherDashboard() {
     var authBox = document.getElementById("teacher-auth-box");
     var panel = document.getElementById("teacher-panel");
+    var marketSetting = document.getElementById("market-product-master-setting");
+    var recBooksSetting = document.getElementById("recommended-books-setting");
     var coordSetting = document.getElementById("coord-master-setting");
     var dateSetting = document.getElementById("program-date-setting");
 
@@ -3214,26 +3230,34 @@
     if (state.isTeacher || isGeneralTeacher) { 
       if (authBox) authBox.style.display = "none";
       if (panel) panel.style.display = "block";
-      // 🚨 마스터 설정(맵 좌표 추출 도구, 오픈 시작일 변경 가이드)은 7777 마스터 관리자 PIN 인증 시에만 노출 (일반 교사는 숨김)
-      if (coordSetting) coordSetting.style.display = state.isMasterAdmin ? "block" : "none";
-      if (dateSetting) dateSetting.style.display = state.isMasterAdmin ? "block" : "none";
-      var elevateBox = document.getElementById("teacher-elevate-box");
-      if (elevateBox) elevateBox.style.display = state.isMasterAdmin ? "none" : "flex";
+
+      // 🚨 마스터 관리자 전용 카드들 (오직 7777 마스터 관리자만 노출, 일반 교사는 숨김)
+      var isMaster = (state.isMasterAdmin === true);
+      if (marketSetting) marketSetting.style.display = isMaster ? "block" : "none";
+      if (recBooksSetting) recBooksSetting.style.display = isMaster ? "block" : "none";
+      if (coordSetting) coordSetting.style.display = isMaster ? "block" : "none";
+      if (dateSetting) dateSetting.style.display = isMaster ? "block" : "none";
 
       var titleEl = document.getElementById("teacher-panel-role-title");
       var descEl = document.getElementById("teacher-panel-role-desc");
       if (titleEl) {
-        titleEl.textContent = state.isMasterAdmin ? "👑 마스터 관리자 모드" : "👩‍🏫 교사 관리자 모드 (" + (state.student ? state.student.name : "선생님") + ")";
+        titleEl.textContent = isMaster ? "👑 마스터 총괄 관리자 모드" : "👩‍🏫 교사 관리자 모드 (" + (state.student ? state.student.name : "선생님") + ")";
       }
       if (descEl) {
-        descEl.textContent = state.isMasterAdmin ? "마스터 권한: 도감 전량 해금 뷰 및 맵 좌표/오픈일 설정이 활성화되었습니다." : "교사 권한: 학생 관리, 칭찬 도장 부여, 마켓 상품 관리 권한이 활성화되었습니다. (도감은 읽은 만큼만 오픈)";
+        descEl.textContent = isMaster
+          ? "마스터 권한: 도감 전량 해금, 마켓 상품 관리, 추천 성경 선택, 맵 좌표 및 시스템 설정이 활성화되었습니다."
+          : "교사 권한: 신규 학생/교사 등록 및 칭찬 도장 선물 권한이 활성화되었습니다. (도감은 직접 읽은 만큼만 오픈)";
       }
 
-      renderRecBooksSummaryText();
-      renderTeacherMarketAdminList();
-    } else { 
+      if (isMaster) {
+        renderTeacherMarketAdminList();
+        renderRecBooksSummaryText();
+      }
+    } else {
       if (authBox) authBox.style.display = "block";
       if (panel) panel.style.display = "none";
+      if (marketSetting) marketSetting.style.display = "none";
+      if (recBooksSetting) recBooksSetting.style.display = "none";
       if (coordSetting) coordSetting.style.display = "none";
       if (dateSetting) dateSetting.style.display = "none";
     }
@@ -4865,7 +4889,6 @@
   window.onRewardInquiry = onRewardInquiry;
   window.onDeleteInquiry = onDeleteInquiry;
   window.openMasterPinPrompt = openMasterPinPrompt;
-  window.onElevateToMaster = onElevateToMaster;
   window.filterShopGuide = filterShopGuide;
   window.toggleGuideCard = toggleGuideCard;
   window.setOnboardStep = setOnboardStep;
