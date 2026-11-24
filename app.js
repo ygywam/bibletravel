@@ -4673,10 +4673,18 @@
     closeStudentSelectModal();
     var pin = prompt("👑 마스터 총괄 관리자 전용 PIN 번호 4자리를 입력하세요:");
     if (!pin) return;
+    if (pin.trim() !== "7777") {
+      return showToast("⚠️ 마스터 관리자 전용 PIN이 일치하지 않습니다.");
+    }
     apiCall("verifyTeacherPin", pin.trim()).then(function(res) {
       if (!res.success || !res.isMasterAdmin) {
         return showToast("⚠️ 마스터 관리자 전용 PIN이 일치하지 않습니다.");
       }
+
+      state.student = null; // 마스터는 특정 학생/교사 회원이 아닌 시스템 총괄 관리자
+      state.sessionToken = null;
+      localStorage.removeItem("bt_session_token");
+      localStorage.removeItem("bt_student_data");
 
       state.isTeacher = true;
       state.isMasterAdmin = true;
@@ -4690,28 +4698,6 @@
       updateUserHeader();
       loadCardDex();
       switchTab("teacher");
-    });
-  }
-
-  function onElevateToMaster() {
-    var input = document.getElementById("elevate-master-pin-input");
-    var pin = input ? input.value.trim() : "";
-    if (!pin) return showToast("마스터 PIN 4자리를 입력하세요.");
-    apiCall("verifyTeacherPin", pin).then(function(res) {
-      if (!res.success || !res.isMasterAdmin) {
-        return showToast("⚠️ 마스터 관리자 전용 PIN이 일치하지 않습니다.");
-      }
-      state.isTeacher = true;
-      state.isMasterAdmin = true;
-      state.teacherToken = res.token;
-      sessionStorage.setItem("bt_is_master_admin", "true");
-      sessionStorage.setItem("bt_teacher_token", res.token);
-      localStorage.setItem("bt_is_master_admin", "true");
-      localStorage.setItem("bt_teacher_token", res.token);
-      showToast("👑 마스터 권한으로 승격되었습니다! (도감 전량 해금)");
-      updateUserHeader();
-      loadCardDex();
-      loadTeacherDashboard();
     });
   }
 
