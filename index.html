@@ -326,26 +326,41 @@
 
         <!-- 📖 성경별 전체 장수 통독 진도표 -->
         <div class="card" style="margin-bottom:16px;">
-          <div style="font-weight:800; font-size:15px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+          <div style="font-weight:800; font-size:15px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
             <div style="display:flex; align-items:center; gap:6px;">
               <button class="btn-pill btn-secondary" style="width:auto; padding:3px 10px; font-size:12px;" onclick="navigateBibleBook(-1)">◀ 이전</button>
               <span id="current-bible-book-title" style="font-weight:800; color:var(--foreground); cursor:pointer; background:var(--primary-light); padding:4px 12px; border-radius:12px; border:1px solid var(--primary-border);" onclick="openBibleSelectModal()">📖 창세기 (1~50장) ▾</span>
               <button class="btn-pill btn-secondary" style="width:auto; padding:3px 10px; font-size:12px;" onclick="navigateBibleBook(1)">다음 ▶</button>
             </div>
-            <span id="bible-book-progress-count" style="font-size:15px; font-weight:800; color:#10b981; background:#ecfdf5; padding:4px 12px; border-radius:12px;">0 / 50</span>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <!-- ⚡ 연속 일괄 체크 토글 버튼 -->
+              <button id="btn-toggle-batch-mode" class="btn-pill btn-secondary" style="width:auto; padding:3px 9px; font-size:11px; font-weight:800; display:inline-flex; align-items:center; gap:4px; border:1px solid var(--border);" onclick="toggleBatchRangeMode()">
+                <span>⚡ 연속 일괄 체크</span>
+                <span id="badge-batch-mode" style="background:#e2e8f0; color:#64748b; padding:1px 6px; border-radius:10px; font-size:10px; font-weight:800;">OFF</span>
+              </button>
+              <span id="bible-book-progress-count" style="font-size:14px; font-weight:800; color:#10b981; background:#ecfdf5; padding:3px 10px; border-radius:12px;">0 / 50</span>
+            </div>
+          </div>
+
+          <!-- 연속 일괄 체크 활성화 시 노출되는 안내 배너 -->
+          <div id="batch-mode-banner" style="display:none; background:#fffbeb; border:1.5px solid #fde68a; border-radius:12px; padding:8px 12px; margin-bottom:10px; font-size:11.5px; color:#b45309; line-height:1.4;">
+            <strong style="color:#d97706;">⚡ 연속 일괄 체크 모드 켜짐:</strong> 원하는 끝 장(예: 10장)을 터치하면 <strong>1장부터 해당 장까지</strong> 한 번에 완료됩니다. (다시 누르면 꺼집니다)
           </div>
           
           <div id="genesis-progress-grid" style="display:grid; grid-template-columns:repeat(8, 1fr); gap:6px; max-height:300px; overflow-y:auto; padding:8px; background:#f8fafc; border-radius:16px; border:1px solid var(--border); margin-bottom:12px;">
             <!-- JS 렌더링 -->
           </div>
 
-          <!-- 오늘 읽을 분량 핑크 강조 안내 바 -->
-          <div id="today-target-highlight-box" style="background:linear-gradient(135deg, #fff0f7 0%, #ffffff 100%); border:1.5px solid var(--primary-border); border-radius:16px; padding:8px 10px; display:flex; justify-content:space-between; align-items:center; gap:6px; white-space:nowrap; overflow:hidden;">
-            <div style="display:flex; align-items:center; gap:6px; min-width:0; flex-shrink:1;">
-              <span style="font-size:clamp(10px, 2.6vw, 11px); font-weight:800; color:var(--primary); background:#ffffff; padding:3px 6px; border-radius:8px; border:1px solid var(--primary-border); flex-shrink:0;">☀️ 오늘 미션</span>
-              <div id="today-target-text" style="font-size:clamp(11px, 2.9vw, 13px); font-weight:800; color:var(--foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">로딩 중...</div>
+          <!-- 오늘 읽을 분량 핑크 강조 안내 바 + 오늘 미션 3장 한 번에 완료 버튼 -->
+          <div id="today-target-highlight-box" style="background:linear-gradient(135deg, #fff0f7 0%, #ffffff 100%); border:1.5px solid var(--primary-border); border-radius:16px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:6px; min-width:0; flex:1 1 auto;">
+              <span style="font-size:11px; font-weight:800; color:var(--primary); background:#ffffff; padding:3px 7px; border-radius:8px; border:1px solid var(--primary-border); flex-shrink:0;">☀️ 오늘 미션</span>
+              <div id="today-target-text" style="font-size:12.5px; font-weight:800; color:var(--foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">로딩 중...</div>
             </div>
-            <span style="font-size:clamp(9px, 2.4vw, 11px); font-weight:800; color:#10b981; background:#ecfdf5; padding:3px 6px; border-radius:8px; flex-shrink:0; white-space:nowrap;">⚡ 터치 시 자동 저장</span>
+            <!-- 오늘 3장 한 번에 완료 원클릭 버튼 -->
+            <button id="btn-complete-today-mission" class="btn-pill btn-cta" style="width:auto; padding:5px 12px; font-size:11.5px; font-weight:800; flex-shrink:0; white-space:nowrap; box-shadow:0 2px 8px rgba(255,102,175,0.3);" onclick="onCompleteTodayMissionBatch()">
+              ⚡ 오늘 3장 한 번에 완료
+            </button>
           </div>
         </div>
 

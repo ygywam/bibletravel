@@ -24,6 +24,7 @@
     isMasterAdmin: false,
     student: null,
     selectedStudentId: null,
+    isBatchRangeMode: false,
     activeMapId: "M01",
     currentTab: "home"
   };
@@ -289,44 +290,54 @@
       if (funcName === "saveReadingLog") {
         const sessionToken = args[0];
         const bookName = args[1];
-        const chapters = Array.isArray(args[2]) ? args[2] : [args[2]];
+        const rawChapters = Array.isArray(args[2]) ? args[2] : [args[2]];
+        const chapters = rawChapters.map(Number).filter(n => !isNaN(n) && n > 0);
         const action = args[3];
         const isOnTime = args[4];
 
         if (!sessionToken) return { success: false, error: "로그인이 필요합니다." };
+        if (chapters.length === 0) return { success: false, error: "처리할 장 번호가 없습니다." };
         const studentId = String(sessionToken).split('_')[2];
-        const targetCh = Number(chapters[0]);
 
         if (action === "remove") {
-          await sb.from('travel_reading_logs').delete().match({ student_id: studentId, book_name: bookName, chapter: targetCh });
+          for (const targetCh of chapters) {
+            await sb.from('travel_reading_logs').delete().match({ student_id: studentId, book_name: bookName, chapter: targetCh });
+          }
           // 잔고 차감 및 코인장부 기록
           const { data: s } = await sb.from('travel_students').select('stamp_balance').eq('student_id', studentId).single();
-          const newStamp = Math.max(0, (s ? s.stamp_balance : 0) - 1);
+          const removeCount = chapters.length;
+          const newStamp = Math.max(0, (s ? s.stamp_balance : 0) - removeCount);
           await sb.from('travel_students').update({ stamp_balance: newStamp }).eq('student_id', studentId);
           await sb.from('travel_coin_ledger').insert({
             student_id: studentId,
             type: 'STAMP',
-            change_stamps: -1,
-            reason: `성경읽기취소: ${bookName} ${targetCh}장`
+            change_stamps: -removeCount,
+            reason: chapters.length === 1
+              ? `성경읽기취소: ${bookName} ${chapters[0]}장`
+              : `성경읽기일괄취소: ${bookName} ${chapters.join(',')}장 (${removeCount}개)`
           });
         } else {
-          await sb.from('travel_reading_logs').upsert({
+          const insertPayloads = chapters.map(targetCh => ({
             student_id: studentId,
             book_name: bookName,
             chapter: targetCh,
             read_date: getKstDateString(),
             is_on_time: Boolean(isOnTime)
-          }, { onConflict: 'student_id,book_name,chapter' });
+          }));
+          await sb.from('travel_reading_logs').upsert(insertPayloads, { onConflict: 'student_id,book_name,chapter' });
 
           // 잔고 증가 및 코인장부 기록
           const { data: s } = await sb.from('travel_students').select('stamp_balance').eq('student_id', studentId).single();
-          const newStamp = (s ? s.stamp_balance : 0) + 1;
+          const addCount = chapters.length;
+          const newStamp = (s ? s.stamp_balance : 0) + addCount;
           await sb.from('travel_students').update({ stamp_balance: newStamp }).eq('student_id', studentId);
           await sb.from('travel_coin_ledger').insert({
             student_id: studentId,
             type: 'STAMP',
-            change_stamps: 1,
-            reason: `성경읽기완료: ${bookName} ${targetCh}장`
+            change_stamps: addCount,
+            reason: chapters.length === 1
+              ? `성경읽기완료: ${bookName} ${chapters[0]}장`
+              : `성경읽기일괄완료: ${bookName} ${chapters.join(',')}장 (${addCount}개)`
           });
         }
 
@@ -2121,6 +2132,42 @@
       }
     }
 
+    // ⚡ [오늘 3장 한 번에 완료] 버튼 상태 동적 갱신
+    var btnCompleteToday = document.getElementById("btn-complete-today-mission");
+    if (btnCompleteToday) {
+      var todayTargetList = getTodayMissionChapters(myStartAbs, myEndAbs);
+      var unreadTodayCount = 0;
+      if (state.student && state.student.readLogs) {
+        unreadTodayCount = todayTargetList.filter(function(item) {
+          return !state.student.readLogs.some(function(l) {
+            return String(l.bookName).trim() === item.bookName && Number(l.chapter) === item.chapter;
+          });
+        }).length;
+      } else {
+        unreadTodayCount = todayTargetList.length;
+      }
+
+      if (unreadTodayCount === 0) {
+        btnCompleteToday.innerHTML = "✅ 오늘 미션 완료됨";
+        btnCompleteToday.className = "btn-pill";
+        btnCompleteToday.style.background = "#ecfdf5";
+        btnCompleteToday.style.color = "#059669";
+        btnCompleteToday.style.border = "1px solid #a7f3d0";
+        btnCompleteToday.style.boxShadow = "none";
+        btnCompleteToday.style.cursor = "default";
+        btnCompleteToday.disabled = true;
+      } else {
+        btnCompleteToday.innerHTML = "⚡ 오늘 " + unreadTodayCount + "장 한 번에 완료 (+" + unreadTodayCount + " 도장)";
+        btnCompleteToday.className = "btn-pill btn-cta";
+        btnCompleteToday.style.background = "";
+        btnCompleteToday.style.color = "";
+        btnCompleteToday.style.border = "";
+        btnCompleteToday.style.boxShadow = "0 2px 8px rgba(255,102,175,0.3)";
+        btnCompleteToday.style.cursor = "pointer";
+        btnCompleteToday.disabled = false;
+      }
+    }
+
     var totalUsedStamps = state.student ? (Number(state.student.totalUsedStamps) || 0) : 0;
 
     // 🚨 칩 생성 루프
@@ -2321,10 +2368,229 @@
   };
 
 
-  // [장 칩 터치 핸들러] 즉시 반응 + 안전한 서버 저장
+  // 📖 오늘 미션에 해당하는 { bookName, chapter, absCh } 배열 산출 유틸리티
+  function getTodayMissionChapters(startAbs, endAbs) {
+    var absRanges = getBibleAbsRanges();
+    var list = [];
+    var s = startAbs || (state.fixedDailyMission ? state.fixedDailyMission.startAbs : 1);
+    var e = endAbs || (state.fixedDailyMission ? state.fixedDailyMission.endAbs : 3);
+    for (var i = s; i <= e; i++) {
+      var r = absRanges.find(function(x) { return i >= x.startAbs && i <= x.endAbs; });
+      if (r) {
+        list.push({ bookName: r.name, chapter: (i - r.startAbs + 1), absCh: i });
+      }
+    }
+    return list;
+  }
+
+  // ⚡ [기능 1] 오늘 3장 한 번에 완료 원클릭 핸들러
+  function onCompleteTodayMissionBatch() {
+    if (!state.student) return showToast("로그인이 필요합니다.");
+    if (!state.fixedDailyMission) initDailyMissionForSession();
+
+    var myStartAbs = state.fixedDailyMission ? state.fixedDailyMission.startAbs : 1;
+    var myEndAbs = state.fixedDailyMission ? state.fixedDailyMission.endAbs : 3;
+    var targetList = getTodayMissionChapters(myStartAbs, myEndAbs);
+
+    if (!state.student.readLogs) state.student.readLogs = [];
+    var unreadItems = targetList.filter(function(item) {
+      return !state.student.readLogs.some(function(l) {
+        return String(l.bookName).trim() === item.bookName && Number(l.chapter) === item.chapter;
+      });
+    });
+
+    if (unreadItems.length === 0) {
+      return showToast("이미 오늘 미션을 모두 완료했습니다! 🎉");
+    }
+
+    // 낙관적 UI 업데이트: unreadItems를 student.readLogs에 즉시 추가
+    var todayStr = getKstDateString();
+    unreadItems.forEach(function(item) {
+      state.student.readLogs.push({ bookName: item.bookName, chapter: item.chapter, readDate: todayStr });
+    });
+    renderBibleBookProgress();
+
+    // 성경책별로 그룹핑하여 서버 배치 저장
+    var bookGroups = {};
+    unreadItems.forEach(function(item) {
+      if (!bookGroups[item.bookName]) bookGroups[item.bookName] = [];
+      bookGroups[item.bookName].push(item.chapter);
+    });
+
+    var bookKeys = Object.keys(bookGroups);
+    var completedBooksCount = 0;
+
+    bookKeys.forEach(function(bName) {
+      var chs = bookGroups[bName];
+      apiCall("saveReadingLog", state.sessionToken, bName, chs, "add", true).then(function(res) {
+        if (res && res.success) {
+          state.student.stampBalance = res.stampBalance;
+          state.student.gemBalance = res.gemBalance;
+          state.student.totalUsedStamps = res.totalUsedStamps;
+          state.student.streakOnTime = res.streakOnTime;
+          if (res.readLogs) state.student.readLogs = res.readLogs;
+          renderWallet();
+          renderBibleBookProgress();
+
+          // 권별 완독 달성 확인
+          var readList = getBookReadChapters(bName);
+          var bDef = ALL_66_BIBLE_BOOKS.find(function(b) { return b.name === bName; });
+          if (bDef && readList.length >= bDef.chapters) {
+            apiCall("unlockStudentCard", state.sessionToken, bDef.order).then(function(cRes) {
+              if (cRes && cRes.success) {
+                state.student.gemBalance = (Number(state.student.gemBalance) || 0) + 2;
+                renderWallet();
+                var cardInfo = (typeof BT_CARDS_MAP !== 'undefined' && BT_CARDS_MAP[bDef.order]) ? BT_CARDS_MAP[bDef.order] : { title: bName + " 완독 카드", category: "성경", img: "/cards/bt_" + (bDef.order < 10 ? "0" + bDef.order : bDef.order) + ".jpg" };
+                openCardDetailModal({
+                  bookOrder: bDef.order,
+                  bookName: bName,
+                  title: bDef.order + ". " + bName + " - " + cardInfo.title + " 해금! (+💎 2개)",
+                  category: cardInfo.category,
+                  imageUrl: cardInfo.img,
+                  unlockedAt: new Date().toISOString()
+                }, true);
+              }
+            });
+          }
+        }
+      });
+    });
+
+    showToast("🎉 오늘 미션 " + unreadItems.length + "장 완독 완료! (💮 도장 +" + unreadItems.length + "개 적립)");
+  }
+
+  // ⚡ [기능 2] 연속 일괄 체크 모드 토글 핸들러
+  function toggleBatchRangeMode() {
+    state.isBatchRangeMode = !state.isBatchRangeMode;
+    var btn = document.getElementById("btn-toggle-batch-mode");
+    var badge = document.getElementById("badge-batch-mode");
+    var banner = document.getElementById("batch-mode-banner");
+
+    if (state.isBatchRangeMode) {
+      if (btn) {
+        btn.style.background = "#fef3c7";
+        btn.style.borderColor = "#f59e0b";
+        btn.style.color = "#b45309";
+      }
+      if (badge) {
+        badge.textContent = "ON";
+        badge.style.background = "#f59e0b";
+        badge.style.color = "#ffffff";
+      }
+      if (banner) banner.style.display = "block";
+      showToast("⚡ 연속 일괄 체크 모드가 켜졌습니다. 완료할 끝 장 번호를 터치하세요!");
+    } else {
+      if (btn) {
+        btn.style.background = "";
+        btn.style.borderColor = "";
+        btn.style.color = "";
+      }
+      if (badge) {
+        badge.textContent = "OFF";
+        badge.style.background = "#e2e8f0";
+        badge.style.color = "#64748b";
+      }
+      if (banner) banner.style.display = "none";
+    }
+  }
+
+  // [장 칩 터치 핸들러] 즉시 반응 + 안전한 서버 저장 (연속 일괄 체크 지원)
   function onChapterChipClick(bookName, targetCh, maxCh) {
     if (!state.student) return showToast("로그인이 필요합니다.");
     var readList = getBookReadChapters(bookName);
+
+    // ⚡ [연속 일괄 체크 모드가 ON인 경우]
+    if (state.isBatchRangeMode) {
+      var unreadRange = [];
+      for (var c = 1; c <= targetCh; c++) {
+        if (readList.indexOf(c) === -1) unreadRange.push(c);
+      }
+
+      if (unreadRange.length === 0) {
+        return showToast("이미 1장부터 " + targetCh + "장까지 모두 완료되어 있습니다.");
+      }
+
+      // 오늘까지 허용된 최대 진도 한도 초과 검사
+      var absRanges = getBibleAbsRanges();
+      var cRange = absRanges.find(function(r) { return r.name === bookName; });
+      var targetAbsCh = cRange ? (cRange.startAbs + targetCh - 1) : targetCh;
+
+      var MAX_ABS = getTotalActiveChapters();
+      var globalTargetAbs = Math.min(MAX_ABS, getGlobalDayIndex() * 3);
+      var myEndAbs = (state.fixedDailyMission && state.fixedDailyMission.endAbs) ? state.fixedDailyMission.endAbs : 3;
+
+      var allReadAbsList = [];
+      if (state.student.readLogs) {
+        state.student.readLogs.forEach(function(l) {
+          var r = absRanges.find(function(x) { return x.name === String(l.bookName).trim(); });
+          if (r) {
+            var aVal = r.startAbs + Number(l.chapter) - 1;
+            if (allReadAbsList.indexOf(aVal) === -1) allReadAbsList.push(aVal);
+          }
+        });
+      }
+      var hasReadToday = false;
+      var myStartAbs = (state.fixedDailyMission && state.fixedDailyMission.startAbs) ? state.fixedDailyMission.startAbs : 1;
+      for (var k = 0; k < allReadAbsList.length; k++) {
+        if (allReadAbsList[k] >= myStartAbs && allReadAbsList[k] <= myEndAbs) { hasReadToday = true; break; }
+      }
+      var allowedMaxAbs = (hasReadToday || allReadAbsList.length >= globalTargetAbs) ? globalTargetAbs : myEndAbs;
+
+      if (targetAbsCh > allowedMaxAbs) {
+        return showToast("⚠️ 오늘까지 허용된 진도 범위를 초과할 수 없습니다.");
+      }
+
+      showToastConfirm("📖 " + bookName + " 1장부터 " + targetCh + "장까지 (" + unreadRange.length + "개 장) 한 번에 완료하시겠습니까?\n(💮 도장 +" + unreadRange.length + "개 적립)").then(function(ok) {
+        if (!ok) return;
+
+        // 낙관적 UI 업데이트
+        var todayStr = getKstDateString();
+        unreadRange.forEach(function(chNum) {
+          state.student.readLogs.push({ bookName: bookName, chapter: chNum, readDate: todayStr });
+        });
+        renderBibleBookProgress();
+        toggleBatchRangeMode(); // 완료 후 안전을 위해 토글 OFF
+
+        apiCall("saveReadingLog", state.sessionToken, bookName, unreadRange, "add", true).then(function(res) {
+          if (res && res.success) {
+            state.student.stampBalance = res.stampBalance;
+            state.student.gemBalance = res.gemBalance;
+            state.student.totalUsedStamps = res.totalUsedStamps;
+            state.student.streakOnTime = res.streakOnTime;
+            if (res.readLogs) state.student.readLogs = res.readLogs;
+            renderWallet();
+            renderBibleBookProgress();
+
+            // 권별 완독 달성 확인
+            if (readList.length + unreadRange.length >= maxCh) {
+              var bookDef = ALL_66_BIBLE_BOOKS.find(function(b) { return b.name === bookName; });
+              if (bookDef) {
+                apiCall("unlockStudentCard", state.sessionToken, bookDef.order).then(function(cRes) {
+                  if (cRes && cRes.success) {
+                    state.student.gemBalance = (Number(state.student.gemBalance) || 0) + 2;
+                    renderWallet();
+                    var cardInfo = (typeof BT_CARDS_MAP !== 'undefined' && BT_CARDS_MAP[bookDef.order]) ? BT_CARDS_MAP[bookDef.order] : { title: bookName + " 완독 카드", category: "성경", img: "/cards/bt_" + (bookDef.order < 10 ? "0" + bookDef.order : bookDef.order) + ".jpg" };
+                    showToast("🎉 " + bookName + " 완독 달성! 💎 보석 +2개를 획득했습니다!");
+                    openCardDetailModal({
+                      bookOrder: bookDef.order,
+                      bookName: bookName,
+                      title: bookDef.order + ". " + bookName + " - " + cardInfo.title + " 해금! (+💎 2개)",
+                      category: cardInfo.category,
+                      imageUrl: cardInfo.img,
+                      unlockedAt: new Date().toISOString()
+                    }, true);
+                  }
+                });
+              }
+            }
+          }
+        });
+
+        showToast("🎉 " + bookName + " 1~" + targetCh + "장 일괄 완료! (💮 도장 +" + unreadRange.length + "개 적립)");
+      });
+      return;
+    }
+
     var isAlreadyRead = (readList.indexOf(targetCh) !== -1);
     var action = isAlreadyRead ? "remove" : "add";
 
@@ -4875,6 +5141,8 @@
   window.onRewardInquiry = onRewardInquiry;
   window.onDeleteInquiry = onDeleteInquiry;
   window.openMasterPinPrompt = openMasterPinPrompt;
+  window.onCompleteTodayMissionBatch = onCompleteTodayMissionBatch;
+  window.toggleBatchRangeMode = toggleBatchRangeMode;
   window.filterShopGuide = filterShopGuide;
   window.toggleGuideCard = toggleGuideCard;
   window.setOnboardStep = setOnboardStep;
